@@ -1,0 +1,21 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "18.20.5",
+    "sdksVersions": {
+      "@microsoft/microsoft-graph-client": "3.0.2",
+      "@microsoft/teams-js": "2.24.0"
+    },
+    "version": "1.20.0",
+    "libraryName": "skillset-users",
+    "libraryId": "268081c1-c8a5-4c74-a585-1667009e3e30",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "skillset-users",
+    "solutionShortDescription": "skillset-users description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

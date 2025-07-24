@@ -1,0 +1,53 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/spfx-serve.schema.json",
+  "port": 4321,
+  "https": true,
+  "serveConfigurations": {
+    "default": {
+      "pageUrl": "https://clouddev366.sharepoint.com/sites/dev-nikhil/_layouts/15/SPListForm.aspx",
+      "formCustomizer": {
+        "componentId": "9c53a28b-b88b-45e9-ae88-afef1f43fbbe",
+        "PageType": 8,
+        "RootFolder": "/sites/dev-nikhil/Lists/Bus",
+        "properties": {
+          "sampleText": "Value"
+        }
+      }
+    },
+    "helloworld_NewForm": {
+      "pageUrl": "https://clouddev366.sharepoint.com/sites/dev-nikhil/_layouts/15/SPListForm.aspx",
+      "formCustomizer": {
+        "componentId": "9c53a28b-b88b-45e9-ae88-afef1f43fbbe",
+        "PageType": 8,
+        "RootFolder": "/sites/dev-nikhil/Lists/Bus",
+        "properties": {
+          "sampleText": "Value"
+        }
+      }
+    },
+    "helloworld_EditForm": {
+      "pageUrl": "https://clouddev366.sharepoint.com/sites/dev-nikhil/_layouts/15/SPListForm.aspx",
+      "formCustomizer": {
+        "componentId": "9c53a28b-b88b-45e9-ae88-afef1f43fbbe",
+        "PageType": 6,
+        "RootFolder": "/sites/dev-nikhil/Lists/Bus",
+        "ID": 1,
+        "properties": {
+          "sampleText": "Value"
+        }
+      }
+    },
+    "helloworld_ViewForm": {
+      "pageUrl": "https://clouddev366.sharepoint.com/sites/dev-nikhil/_layouts/15/SPListForm.aspx",
+      "formCustomizer": {
+        "componentId": "9c53a28b-b88b-45e9-ae88-afef1f43fbbe",
+        "PageType": 4,
+        "RootFolder": "/sites/dev-nikhil/Lists/Bus",
+        "ID": 1,
+        "properties": {
+          "sampleText": "Value"
+        }
+      }
+    }
+  }
+}

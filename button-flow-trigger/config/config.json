@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "hi-command-set": {
+      "components": [
+        {
+          "entrypoint": "./lib/extensions/hi/HiCommandSet.js",
+          "manifest": "./src/extensions/hi/HiCommandSet.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "HiCommandSetStrings": "lib/extensions/hi/loc/{locale}.js"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx/command-set-extension-manifest.schema.json",
+
+  "id": "7eccbf3c-a8a9-45d4-a8bf-65fc00c1a073",
+  "alias": "HiCommandSet",
+  "componentType": "Extension",
+  "extensionType": "ListViewCommandSet",
+
+
+  "version": "*",
+  "manifestVersion": 2,
+
+  "requiresCustomScript": false,
+
+  "items": {
+    "MARK_CUSTOMER": {
+      "title": { "default": "Customer" },
+      "iconImageUrl": "icons/request.png",
+      "type": "command"
+    }
+  }
+}

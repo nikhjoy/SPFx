@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Elements xmlns="http://schemas.microsoft.com/sharepoint/">
+  <CustomAction
+    Title="Send to Flow"
+    Location="ClientSideExtension.ListViewCommandSet.CommandBar"
+    RegistrationType="List"
+    RegistrationId="100"
+    ClientSideComponentId="7eccbf3c-a8a9-45d4-a8bf-65fc00c1a073"
+    ClientSideComponentProperties='{
+      "sampleTextOne": "One item is selected in the list.",
+      "sampleTextTwo": "This command triggers a flow with item ID."
+    }'>
+  </CustomAction>
+</Elements>

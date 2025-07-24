@@ -1,0 +1,23 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx/command-set-extension-manifest.schema.json",
+  "id": "d99fbdc8-eff2-4299-be87-9ac27a11d257",
+  "alias": "ButtonDialogBoxCommandSet",
+  "componentType": "Extension",
+  "extensionType": "ListViewCommandSet",
+  "version": "*",
+  "manifestVersion": 2,
+  "requiresCustomScript": false,
+
+  "items": {
+    "SHOW_VERSIONS": {
+      "title": { "default": "Show Versions" },
+      "iconImageUrl": "icons/request.png",
+      "type": "command"
+    },
+    "COMMAND_2": {
+      "title": { "default": "Command Two" },
+      "iconImageUrl": "icons/cancel.png",
+      "type": "command"
+    }
+  }
+}

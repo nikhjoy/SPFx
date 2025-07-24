@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Elements xmlns="http://schemas.microsoft.com/sharepoint/">
+  <CustomAction
+    Title="Show Version History"
+    Location="ClientSideExtension.ListViewCommandSet"
+    ClientSideComponentId="d99fbdc8-eff2-4299-be87-9ac27a11d257"
+    ClientSideComponentProperties="{ &quot;sampleTextOne&quot;: &quot;Hello&quot;, &quot;sampleTextTwo&quot;: &quot;This command is always visible.&quot; }">
+    <CommandUIExtension>
+      <Commands>
+        <Command
+          Name="SHOW_VERSIONS"
+          Title="Show Versions"
+          Sequence="100"
+          IconImageUrl="" />
+      </Commands>
+      <CommandActions>
+        <CommandAction
+          Command="SHOW_VERSIONS"
+          Title="Show Versions" />
+      </CommandActions>
+    </CommandUIExtension>
+  </CustomAction>
+</Elements>

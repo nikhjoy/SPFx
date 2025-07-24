@@ -1,0 +1,41 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "insert-data-client-side-solution",
+    "id": "f3dd6064-e6be-4a8c-a38a-827ebc995a09",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.20.0"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "insert-data description"
+      },
+      "longDescription": {
+        "default": "insert-data description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "insert-data Feature",
+        "description": "The feature that activates elements of the insert-data solution.",
+        "id": "f62dd3ce-b556-48a8-b0c6-2b9185647d84",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  
+  "paths": {
+    "zippedPackage": "solution/insert-data.sppkg"
+  }
+}

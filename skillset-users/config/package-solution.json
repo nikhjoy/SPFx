@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "skillset-users-client-side-solution",
+    "id": "268081c1-c8a5-4c74-a585-1667009e3e30",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.20.0"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "skillset-users description"
+      },
+      "longDescription": {
+        "default": "skillset-users description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "skillset-users Feature",
+        "description": "The feature that activates elements of the skillset-users solution.",
+        "id": "70c3af6e-cbe3-476b-900c-d44d044dd439",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/skillset-users.sppkg"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "fetch-data-client-side-solution",
+    "id": "ecacda2e-7c05-4f41-8c36-ea44c11bdc52",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.20.0"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "fetch-data description"
+      },
+      "longDescription": {
+        "default": "fetch-data description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "fetch-data Feature",
+        "description": "The feature that activates elements of the fetch-data solution.",
+        "id": "bfbd1082-b3d0-4202-b01a-f7ffc4659cef",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/fetch-data.sppkg"
+  }
+}

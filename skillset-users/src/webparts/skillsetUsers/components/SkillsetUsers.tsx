@@ -1,0 +1,172 @@
+import * as React from 'react';
+import { useState, useEffect } from 'react';
+import { sp } from '@pnp/sp/presets/all';
+import { IDropdownOption } from '@fluentui/react';
+import LoginForm from './LoginForm';
+import DashboardView from './DashboardView';
+import EditProfile from './EditProfile';
+import TestPage from './TestPage';
+import { ISkillsetUsersProps } from './ISkillsetUsersProps';
+
+const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
+  const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [loginItemId, setLoginItemId] = useState<number | null>(null);
+  const [loginForm, setLoginForm] = useState({
+    fullName: '', email: '', age: '', skillsets: [] as number[], password: ''
+  });
+  const [welcomeName, setWelcomeName] = useState('');
+  const [skillsetOptions, setSkillsetOptions] = useState<IDropdownOption[]>([]);
+  const [, setSelectedTestSkill] = useState<number | null>(null);
+  const [, setShowTestSection] = useState(false);
+  const [view, setView] = useState<'dashboard' | 'edit' | 'test' | 'login'>('login');
+
+ 
+  const [] = useState<any[]>([]);
+  const [] = useState<{ [key: number]: string }>({});
+  const [] = useState<{ score: number, passed: boolean } | null>(null);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const skillsets = await sp.web.lists.getByTitle("Skillset_Master").items.select("Id", "Title").get();
+        setSkillsetOptions(skillsets.map(item => ({ key: item.Id, text: item.Title })));
+        const currentUser = await sp.web.currentUser.get();
+        setLoginForm(prev => ({ ...prev, email: currentUser.Email }));
+      } catch (err) {
+        console.error("Initialization error:", err);
+      }
+    };
+    init();
+  }, []);
+
+  const hashPassword = async (plainText: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(plainText);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleLoginSubmit = async () => {
+    setLoading(true);
+    setLoginError('');
+    try {
+      const hashedPassword = await hashPassword(loginForm.password);
+      const items = await sp.web.lists.getByTitle("All_Users").items
+        .filter(`Email eq '${loginForm.email}' and Password eq '${hashedPassword}'`)
+        .select("Id", "Title", "Email", "Age", "Skillset/Id")
+        .expand("Skillset")
+        .top(1)
+        .get();
+      if (items.length === 0) {
+        setLoginError("Invalid credentials. Please try again.");
+      } else {
+        const user = items[0];
+        const skills = user.Skillset ? user.Skillset.map((s: any) => s.Id) : [];
+        setLoginItemId(user.Id);
+        setLoginForm({
+          fullName: user.Title,
+          email: user.Email,
+          age: user.Age.toString(),
+          password: '',
+          skillsets: skills
+        });
+        setWelcomeName(user.Title);
+        setView('dashboard');
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      setLoginError("Something went wrong. Please try again.");
+    }
+    setLoading(false);
+  };
+
+  const handleInputChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
+    const { name } = event.currentTarget;
+    setLoginForm({ ...loginForm, [name]: newValue || '' });
+  };
+
+  const handleSkillsetChange = (event: React.FormEvent<HTMLDivElement>, option: IDropdownOption): void => {
+    setLoginForm(prev => {
+      const newSkills = option.selected
+        ? [...prev.skillsets, Number(option.key)]
+        : prev.skillsets.filter(k => k !== option.key);
+      return { ...prev, skillsets: newSkills };
+    });
+  };
+
+  const handleSave = async () => {
+    if (!loginItemId) return;
+    setLoading(true);
+    try {
+      await sp.web.lists.getByTitle("All_Users").items.getById(loginItemId).update({
+        Title: loginForm.fullName,
+        Age: parseInt(loginForm.age),
+        SkillsetId: { results: loginForm.skillsets }
+      });
+      setView('dashboard');
+    } catch (error) {
+      console.error("Error updating user:", error);
+    }
+    setLoading(false);
+  };
+
+  const handleLogout = () => {
+    setLoginItemId(null);
+    setLoginForm({ fullName: '', email: '', age: '', password: '', skillsets: [] });
+    setShowTestSection(false);
+    setSelectedTestSkill(null);
+    setWelcomeName('');
+    setView('login');
+  };
+
+  return (
+    <div style={{ marginTop: 20, fontFamily: 'Segoe UI', backgroundColor: '#f4f6f8', padding: 30, minHeight: '100vh' }}>
+      {view === 'login' && (
+        <LoginForm
+          loginForm={loginForm}
+          loginError={loginError}
+          loading={loading}
+          onInputChange={handleInputChange}
+          onSubmit={handleLoginSubmit}
+        />
+      )}
+
+      {view === 'dashboard' && (
+        <DashboardView
+          welcomeName={welcomeName}
+          onEditClick={() => setView('edit')}
+          onTestClick={() => setView('test')}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {view === 'edit' && (
+        <EditProfile
+          loginForm={loginForm}
+          loading={loading}
+          skillsetOptions={skillsetOptions}
+          onInputChange={handleInputChange}
+          onSkillsetChange={handleSkillsetChange}
+          onSave={handleSave}
+          onBack={() => setView('dashboard')}
+          onLogout={handleLogout}
+        />
+      )}
+
+{view === 'test' && (
+  <TestPage
+    skillsetOptions={skillsetOptions}
+    selectedSkillIds={loginForm.skillsets}
+    welcomeName={welcomeName}
+     userEmail={loginForm.email}
+    onLogout={handleLogout}
+    onBack={() => setView('dashboard')}
+  />
+)}
+
+    </div>
+  );
+};
+
+export default SkillsetUsers;

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "button-dialog-box-command-set": {
+      "components": [
+        {
+          "entrypoint": "./lib/extensions/buttonDialogBox/ButtonDialogBoxCommandSet.js",
+          "manifest": "./src/extensions/buttonDialogBox/ButtonDialogBoxCommandSet.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "ButtonDialogBoxCommandSetStrings": "lib/extensions/buttonDialogBox/loc/{locale}.js",
+    "ControlStrings": "node_modules/@pnp/spfx-controls-react/lib/loc/{locale}.js"
+  }
+}

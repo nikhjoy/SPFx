@@ -1,0 +1,21 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "18.20.5",
+    "sdksVersions": {
+      "@microsoft/microsoft-graph-client": "3.0.2",
+      "@microsoft/teams-js": "2.24.0"
+    },
+    "version": "1.20.0",
+    "libraryName": "fetch-data",
+    "libraryId": "ecacda2e-7c05-4f41-8c36-ea44c11bdc52",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "fetch-data",
+    "solutionShortDescription": "fetch-data description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

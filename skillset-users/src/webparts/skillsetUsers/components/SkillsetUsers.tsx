@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react';
 import { sp } from '@pnp/sp/presets/all';
 import { IDropdownOption } from '@fluentui/react';
 import LoginForm from './LoginForm';
-import DashboardView from './DashboardView';
+import HeaderLayout from './HeaderLayout';
 import EditProfile from './EditProfile';
 import TestPage from './TestPage';
+import TicketList from './TicketList';
 import { ISkillsetUsersProps } from './ISkillsetUsersProps';
 
 const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
@@ -20,11 +21,6 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
   const [, setSelectedTestSkill] = useState<number | null>(null);
   const [, setShowTestSection] = useState(false);
   const [view, setView] = useState<'dashboard' | 'edit' | 'test' | 'login'>('login');
-
- 
-  const [] = useState<any[]>([]);
-  const [] = useState<{ [key: number]: string }>({});
-  const [] = useState<{ score: number, passed: boolean } | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -132,39 +128,47 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
         />
       )}
 
-      {view === 'dashboard' && (
-        <DashboardView
+      {view !== 'login' && (
+        <HeaderLayout
           welcomeName={welcomeName}
           onEditClick={() => setView('edit')}
           onTestClick={() => setView('test')}
           onLogout={handleLogout}
-        />
+        >
+          {view === 'dashboard' && (
+            <TicketList
+              welcomeName={welcomeName}
+              onEditClick={() => setView('edit')}
+              onTestClick={() => setView('test')}
+              onLogout={handleLogout}
+            />
+          )}
+
+          {view === 'edit' && (
+            <EditProfile
+              loginForm={loginForm}
+              loading={loading}
+              skillsetOptions={skillsetOptions}
+              onInputChange={handleInputChange}
+              onSkillsetChange={handleSkillsetChange}
+              onSave={handleSave}
+              onBack={() => setView('dashboard')}
+              onLogout={handleLogout}
+            />
+          )}
+
+          {view === 'test' && (
+            <TestPage
+              skillsetOptions={skillsetOptions}
+              selectedSkillIds={loginForm.skillsets}
+              welcomeName={welcomeName}
+              userEmail={loginForm.email}
+              onLogout={handleLogout}
+              onBack={() => setView('dashboard')}
+            />
+          )}
+        </HeaderLayout>
       )}
-
-      {view === 'edit' && (
-        <EditProfile
-          loginForm={loginForm}
-          loading={loading}
-          skillsetOptions={skillsetOptions}
-          onInputChange={handleInputChange}
-          onSkillsetChange={handleSkillsetChange}
-          onSave={handleSave}
-          onBack={() => setView('dashboard')}
-          onLogout={handleLogout}
-        />
-      )}
-
-{view === 'test' && (
-  <TestPage
-    skillsetOptions={skillsetOptions}
-    selectedSkillIds={loginForm.skillsets}
-    welcomeName={welcomeName}
-     userEmail={loginForm.email}
-    onLogout={handleLogout}
-    onBack={() => setView('dashboard')}
-  />
-)}
-
     </div>
   );
 };

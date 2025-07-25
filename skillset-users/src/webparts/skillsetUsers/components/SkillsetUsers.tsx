@@ -1,12 +1,13 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { sp } from '@pnp/sp/presets/all';
-import { IDropdownOption } from '@fluentui/react';
+import { IDropdownOption, Stack, Text, PrimaryButton } from '@fluentui/react';
 import LoginForm from './LoginForm';
 import HeaderLayout from './HeaderLayout';
 import EditProfile from './EditProfile';
 import TestPage from './TestPage';
 import TicketList from './TicketList';
+import RegisterForm from './RegisterForm';
 import { ISkillsetUsersProps } from './ISkillsetUsersProps';
 
 const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
@@ -17,10 +18,12 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
     fullName: '', email: '', age: '', skillsets: [] as number[], password: ''
   });
   const [welcomeName, setWelcomeName] = useState('');
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [selectedRole, setSelectedRole] = useState('');
   const [skillsetOptions, setSkillsetOptions] = useState<IDropdownOption[]>([]);
   const [, setSelectedTestSkill] = useState<number | null>(null);
   const [, setShowTestSection] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'edit' | 'test' | 'login'>('login');
+  const [view, setView] = useState<'dashboard' | 'edit' | 'test' | 'login' | 'register'>('login');
 
   useEffect(() => {
     const init = async () => {
@@ -50,8 +53,8 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
       const hashedPassword = await hashPassword(loginForm.password);
       const items = await sp.web.lists.getByTitle("All_Users").items
         .filter(`Email eq '${loginForm.email}' and Password eq '${hashedPassword}'`)
-        .select("Id", "Title", "Email", "Age", "Skillset/Id")
-        .expand("Skillset")
+        .select("Id", "Title", "Email", "Age", "Skillset/Id", "User_Role/Title")
+        .expand("Skillset", "User_Role")
         .top(1)
         .get();
       if (items.length === 0) {
@@ -59,6 +62,7 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
       } else {
         const user = items[0];
         const skills = user.Skillset ? user.Skillset.map((s: any) => s.Id) : [];
+        const roles = Array.isArray(user.User_Role) ? user.User_Role.map((r: any) => r.Title) : [user.User_Role?.Title];
         setLoginItemId(user.Id);
         setLoginForm({
           fullName: user.Title,
@@ -68,6 +72,8 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
           skillsets: skills
         });
         setWelcomeName(user.Title);
+        setUserRoles(roles.filter(Boolean));
+        setSelectedRole(roles[0] || '');
         setView('dashboard');
       }
     } catch (err) {
@@ -113,26 +119,45 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
     setShowTestSection(false);
     setSelectedTestSkill(null);
     setWelcomeName('');
+    setUserRoles([]);
+    setSelectedRole('');
     setView('login');
   };
 
   return (
     <div style={{ marginTop: 20, fontFamily: 'Segoe UI', backgroundColor: '#f4f6f8', padding: 30, minHeight: '100vh' }}>
       {view === 'login' && (
-        <LoginForm
-          loginForm={loginForm}
-          loginError={loginError}
-          loading={loading}
-          onInputChange={handleInputChange}
-          onSubmit={handleLoginSubmit}
+        <>
+          <LoginForm
+            loginForm={loginForm}
+            loginError={loginError}
+            loading={loading}
+            onInputChange={handleInputChange}
+            onSubmit={handleLoginSubmit}
+          />
+          <Stack horizontalAlign="center" tokens={{ childrenGap: 6 }} styles={{ root: { marginTop: 12 } }}>
+            <Text variant="small">New user?</Text>
+            <PrimaryButton text="Sign up" onClick={() => setView('register')} styles={{ root: { padding: '0 12px', height: 32, fontSize: 12 } }} />
+          </Stack>
+        </>
+      )}
+
+      {view === 'register' && (
+        <RegisterForm
+          onBack={() => setView('login')}
+          skillsetOptions={skillsetOptions}
         />
       )}
 
-      {view !== 'login' && (
+      {view !== 'login' && view !== 'register' && (
         <HeaderLayout
           welcomeName={welcomeName}
+          userRole={userRoles}
+          selectedRole={selectedRole}
+          onRoleChange={setSelectedRole}
           onEditClick={() => setView('edit')}
           onTestClick={() => setView('test')}
+          onTicketsClick={() => setView('dashboard')}
           onLogout={handleLogout}
         >
           {view === 'dashboard' && (

@@ -1,11 +1,15 @@
 import * as React from 'react';
-import { Text, IconButton, IContextualMenuProps } from '@fluentui/react';
+import { Text, IconButton, IContextualMenuProps, Stack, Label, Dropdown, IDropdownOption } from '@fluentui/react';
 
 export interface IHeaderLayoutProps {
   welcomeName: string;
   onEditClick: () => void;
   onTestClick: () => void;
+  onTicketsClick: () => void;
   onLogout: () => void;
+  userRole?: string[];
+  selectedRole?: string;
+  onRoleChange?: (role: string) => void;
   children: React.ReactNode;
 }
 
@@ -13,7 +17,11 @@ const HeaderLayout: React.FC<IHeaderLayoutProps> = ({
   welcomeName,
   onEditClick,
   onTestClick,
+  onTicketsClick,
   onLogout,
+  userRole,
+  selectedRole,
+  onRoleChange,
   children
 }) => {
   const settingsMenuProps: IContextualMenuProps = {
@@ -31,12 +39,37 @@ const HeaderLayout: React.FC<IHeaderLayoutProps> = ({
         onClick: onTestClick
       },
       {
+        key: 'tickets',
+        text: 'Tickets',
+        iconProps: { iconName: 'ReportDocument' },
+        onClick: onTicketsClick
+      },
+      {
         key: 'logout',
         text: 'Logout',
         iconProps: { iconName: 'SignOut' },
         onClick: onLogout
       }
     ]
+  };
+
+  const renderRole = () => {
+    if (!userRole || userRole.length === 0) return null;
+    if (userRole.length === 1) {
+      return (
+        <Label styles={{ root: { color: 'white', fontWeight: 500, fontSize: 14, paddingRight: 10 } }}>{userRole[0]}</Label>
+      );
+    }
+    const roleOptions: IDropdownOption[] = userRole.map(role => ({ key: role, text: role }));
+    return (
+      <Dropdown
+        label=""
+        options={roleOptions}
+        selectedKey={selectedRole}
+        onChange={(e, option) => onRoleChange && onRoleChange(option?.text || '')}
+        styles={{ dropdown: { minWidth: 150 }, title: { background: 'white', color: '#333' } }}
+      />
+    );
   };
 
   return (
@@ -54,13 +87,18 @@ const HeaderLayout: React.FC<IHeaderLayoutProps> = ({
         <Text variant="xLarge" styles={{ root: { fontWeight: 600 } }}>
           Welcome to your Dashboard, {welcomeName}
         </Text>
-        <IconButton
-          iconProps={{ iconName: 'Settings' }}
-          title="Settings"
-          ariaLabel="Settings"
-          menuProps={settingsMenuProps}
-          styles={{ root: { color: 'white' } }}
-        />
+
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }} horizontalAlign="end" style={{ flexShrink: 0 }}>
+          {renderRole()}
+          <IconButton
+            iconProps={{ iconName: 'Settings' }}
+            title="Settings"
+            ariaLabel="Settings"
+            menuProps={settingsMenuProps}
+            styles={{ root: { color: 'white' } }}
+            menuIconProps={{ style: { display: 'none' } }}
+          />
+        </Stack>
       </div>
 
       <div style={{

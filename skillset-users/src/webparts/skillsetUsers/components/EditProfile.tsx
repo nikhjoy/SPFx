@@ -14,6 +14,11 @@ export interface IEditProfileProps {
     age: string;
     skillsets: number[];
   };
+
+  userRoles: number[];
+  roleOptions: IDropdownOption[];
+  onRoleChange: (event: React.FormEvent<HTMLDivElement>, option: IDropdownOption) => void;
+  
   loading: boolean;
   skillsetOptions: IDropdownOption[];
   onInputChange: (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string) => void;
@@ -23,6 +28,7 @@ export interface IEditProfileProps {
   onLogout: () => void;
   onEditClick?: () => void;
   onTestClick?: () => void;
+  
 }
 
 const EditProfile: React.FC<IEditProfileProps> = ({
@@ -35,7 +41,11 @@ const EditProfile: React.FC<IEditProfileProps> = ({
   onBack,
   onLogout,
   onEditClick,
-  onTestClick
+  onTestClick,
+    userRoles,
+  roleOptions,
+  onRoleChange,
+
 }) => {
   return (
     <>
@@ -51,6 +61,16 @@ const EditProfile: React.FC<IEditProfileProps> = ({
         selectedKeys={loginForm.skillsets}
         onChange={onSkillsetChange}
       />
+<Dropdown
+  label="User Roles"
+  placeholder="Select roles"
+  multiSelect
+  options={roleOptions}
+  selectedKeys={userRoles}
+  onChange={onRoleChange}
+/>
+
+
       <DialogFooter>
         <PrimaryButton text="Save" onClick={onSave} disabled={loading || !loginForm.fullName || !loginForm.age} />
         <PrimaryButton text="Back to Dashboard" onClick={onBack} />

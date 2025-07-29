@@ -1,4 +1,4 @@
-import * as React from 'react';
+import * as React from 'react'; 
 import { useState, useEffect } from 'react';
 import { sp } from '@pnp/sp/presets/all';
 import { IDropdownOption, Stack, Text, PrimaryButton } from '@fluentui/react';
@@ -18,18 +18,23 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
     fullName: '', email: '', age: '', skillsets: [] as number[], password: ''
   });
   const [welcomeName, setWelcomeName] = useState('');
-  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [userRoles, setUserRoles] = useState<number[]>([]);
   const [selectedRole, setSelectedRole] = useState('');
   const [skillsetOptions, setSkillsetOptions] = useState<IDropdownOption[]>([]);
   const [, setSelectedTestSkill] = useState<number | null>(null);
   const [, setShowTestSection] = useState(false);
   const [view, setView] = useState<'dashboard' | 'edit' | 'test' | 'login' | 'register'>('login');
+  const [roleOptions, setRoleOptions] = useState<IDropdownOption[]>([]);
 
   useEffect(() => {
     const init = async () => {
       try {
         const skillsets = await sp.web.lists.getByTitle("Skillset_Master").items.select("Id", "Title").get();
         setSkillsetOptions(skillsets.map(item => ({ key: item.Id, text: item.Title })));
+
+        const roles = await sp.web.lists.getByTitle("Role_Master").items.select("Id", "Title").get();
+        setRoleOptions(roles.map(item => ({ key: item.Id, text: item.Title })));
+
         const currentUser = await sp.web.currentUser.get();
         setLoginForm(prev => ({ ...prev, email: currentUser.Email }));
       } catch (err) {
@@ -53,7 +58,7 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
       const hashedPassword = await hashPassword(loginForm.password);
       const items = await sp.web.lists.getByTitle("All_Users").items
         .filter(`Email eq '${loginForm.email}' and Password eq '${hashedPassword}'`)
-        .select("Id", "Title", "Email", "Age", "Skillset/Id", "User_Role/Title")
+        .select("Id", "Title", "Email", "Age", "Skillset/Id", "User_Role/Id", "User_Role/Title")
         .expand("Skillset", "User_Role")
         .top(1)
         .get();
@@ -62,7 +67,7 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
       } else {
         const user = items[0];
         const skills = user.Skillset ? user.Skillset.map((s: any) => s.Id) : [];
-        const roles = Array.isArray(user.User_Role) ? user.User_Role.map((r: any) => r.Title) : [user.User_Role?.Title];
+        const roleIds = user.User_Role ? user.User_Role.map((r: any) => r.Id) : [];
         setLoginItemId(user.Id);
         setLoginForm({
           fullName: user.Title,
@@ -72,8 +77,9 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
           skillsets: skills
         });
         setWelcomeName(user.Title);
-        setUserRoles(roles.filter(Boolean));
-        setSelectedRole(roles[0] || '');
+        setUserRoles(roleIds);
+        const roleTitles = user.User_Role ? user.User_Role.map((r: any) => r.Title) : [];
+        setSelectedRole(roleTitles[0] || '');
         setView('dashboard');
       }
     } catch (err) {
@@ -97,6 +103,15 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
     });
   };
 
+  const handleRoleChange = (event: React.FormEvent<HTMLDivElement>, option: IDropdownOption): void => {
+    if (option) {
+      const updatedRoles = option.selected
+        ? [...userRoles, option.key as number]
+        : userRoles.filter(id => id !== option.key);
+      setUserRoles(updatedRoles);
+    }
+  };
+
   const handleSave = async () => {
     if (!loginItemId) return;
     setLoading(true);
@@ -104,7 +119,8 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
       await sp.web.lists.getByTitle("All_Users").items.getById(loginItemId).update({
         Title: loginForm.fullName,
         Age: parseInt(loginForm.age),
-        SkillsetId: { results: loginForm.skillsets }
+        SkillsetId: { results: loginForm.skillsets },
+        User_RoleId: { results: userRoles }
       });
       setView('dashboard');
     } catch (error) {
@@ -123,6 +139,10 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
     setSelectedRole('');
     setView('login');
   };
+
+  const selectedRoleTitles = roleOptions
+    .filter(opt => userRoles.includes(opt.key as number))
+    .map(opt => opt.text as string);
 
   return (
     <div style={{ marginTop: 20, fontFamily: 'Segoe UI', backgroundColor: '#f4f6f8', padding: 30, minHeight: '100vh' }}>
@@ -152,7 +172,7 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
       {view !== 'login' && view !== 'register' && (
         <HeaderLayout
           welcomeName={welcomeName}
-          userRole={userRoles}
+          userRole={selectedRoleTitles}
           selectedRole={selectedRole}
           onRoleChange={setSelectedRole}
           onEditClick={() => setView('edit')}
@@ -179,6 +199,9 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
               onSave={handleSave}
               onBack={() => setView('dashboard')}
               onLogout={handleLogout}
+              userRoles={userRoles}
+              roleOptions={roleOptions}
+              onRoleChange={handleRoleChange}
             />
           )}
 

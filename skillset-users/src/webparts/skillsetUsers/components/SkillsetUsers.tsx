@@ -181,12 +181,14 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
           onLogout={handleLogout}
         >
           {view === 'dashboard' && (
-            <TicketList
-              welcomeName={welcomeName}
-              onEditClick={() => setView('edit')}
-              onTestClick={() => setView('test')}
-              onLogout={handleLogout}
-            />
+<TicketList
+  welcomeName={welcomeName}
+  selectedRole={selectedRole} // ✅ Add this line
+  onEditClick={() => setView('edit')}
+  onTestClick={() => setView('test')}
+  onLogout={handleLogout}
+/>
+
           )}
 
           {view === 'edit' && (

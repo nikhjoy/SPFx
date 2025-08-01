@@ -1,5 +1,3 @@
-// --- TicketList.tsx (Complete, Part 1) ---
-// 1
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { sp } from '@pnp/sp/presets/all';
@@ -40,6 +38,9 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
   const [requestor, setRequestor] = useState<string[]>([]);
   const [assignedTo, setAssignedTo] = useState<string[]>([]);
   const [skillsetOptions, setSkillsetOptions] = useState<IDropdownOption[]>([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [ticketToDelete, setTicketToDelete] = useState<any | null>(null);
+
 
   const closeDialog = () => {
     setIsDialogOpen(false);
@@ -154,13 +155,11 @@ if (managerEmail) {
     if (requestorId) data.RequestorId = requestorId;
     if (assignedToId) data.AssignedToId = assignedToId;
 
-    // 👇 Only set Manager on INSERT
-if (!selectedTicket && managerId !== null && managerId !== undefined) {
+if (managerId !== null && managerId !== undefined) {
   console.log("👨‍💼 Manager ID to set:", managerId);
   console.log("🧾 Will assign to field 'ManagerId'");
   data['ManagerId'] = managerId;
 }
-
 
     if (selectedTicket) {
       await sp.web.lists.getByTitle('Tickets').items.getById(selectedTicket.Id).update(data);
@@ -194,13 +193,14 @@ if (!selectedTicket && managerId !== null && managerId !== undefined) {
   setIsViewDialogOpen(true);
 };
 
-  //2 
-
-  const handleDelete = async (id: number) => {
-    await sp.web.lists.getByTitle('Tickets').items.getById(id).recycle();
+const confirmDelete = async () => {
+  if (ticketToDelete) {
+    await sp.web.lists.getByTitle('Tickets').items.getById(ticketToDelete.Id).recycle();
+    setDeleteConfirmOpen(false);
+    setTicketToDelete(null);
     await fetchTickets();
-  };
-
+  }
+};
 
   const filteredTickets = React.useMemo(() => {
     if (selectedRole === 'Support_Manager') return tickets.filter(t => t.Status === 'Submitted');
@@ -239,7 +239,26 @@ if (!selectedTicket && managerId !== null && managerId !== undefined) {
         <Stack horizontal tokens={{ childrenGap: 8 }}>
           <IconButton iconProps={{ iconName: 'View' }} onClick={() => openViewDialog(item)} />
           <IconButton iconProps={{ iconName: 'Edit' }} onClick={() => openEditDialog(item)} />
-          <IconButton iconProps={{ iconName: 'Delete' }} onClick={() => handleDelete(item.Id)} />
+          <IconButton iconProps={{ iconName: 'Delete' }} onClick={() => {
+            setTicketToDelete(item);
+            setDeleteConfirmOpen(true);
+          }}
+          />
+          <Dialog
+  hidden={!deleteConfirmOpen}
+  onDismiss={() => setDeleteConfirmOpen(false)}
+  dialogContentProps={{
+    type: DialogType.normal,
+    title: 'Confirm Delete',
+    subText: `Are you sure you want to delete the ticket "${ticketToDelete?.Title}"?`,
+  }}
+>
+  <DialogFooter>
+    <PrimaryButton text="Yes, Delete" onClick={confirmDelete} />
+    <DefaultButton text="Cancel" onClick={() => setDeleteConfirmOpen(false)} />
+  </DialogFooter>
+</Dialog>
+
         </Stack>
       )
     }

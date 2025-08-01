@@ -183,7 +183,13 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
           {view === 'dashboard' && (
 <TicketList
   welcomeName={welcomeName}
-  selectedRole={selectedRole} // ✅ Add this line
+  selectedRole={selectedRole}
+  loginEmail={loginForm.email}
+  context={{
+    spHttpClient: props.context.spHttpClient,
+    msGraphClientFactory: props.context.msGraphClientFactory,
+    absoluteUrl: props.context.pageContext.web.absoluteUrl
+  }}
   onEditClick={() => setView('edit')}
   onTestClick={() => setView('test')}
   onLogout={handleLogout}

@@ -11,17 +11,12 @@ import {
 } from '@fluentui/react';
 import { IGroup } from '@fluentui/react';
 import { PeoplePicker, IPeoplePickerUserItem } from '@pnp/spfx-controls-react/lib/PeoplePicker';
-import { SPHttpClient, MSGraphClientFactory } from '@microsoft/sp-http';
 
 interface ITicketListProps {
   welcomeName: string;
   selectedRole: string;
   loginEmail: string;
-  context: {
-    spHttpClient: SPHttpClient;
-    msGraphClientFactory: MSGraphClientFactory;
-    absoluteUrl: string;
-  };
+  context: any;
   onEditClick: () => void;
   onTestClick: () => void;
   onLogout: () => void;
@@ -107,76 +102,38 @@ console.log('🔍 Raw SharePoint items:', items);
 };
 
 
-const handleSave = async () => {
-  try {
-    const requestorEmail = requestor[0];
-    const assignedToEmail = assignedTo[0];
-    let requestorId = null;
-    let assignedToId = null;
-    let managerId = null;
+  const handleSave = async () => {
+    try {
+      const requestorEmail = requestor[0];
+      const assignedToEmail = assignedTo[0];
+      let requestorId = null;
+      let assignedToId = null;
 
-    if (requestorEmail) {
-      const ensuredRequestor = await sp.web.ensureUser(requestorEmail);
-      requestorId = ensuredRequestor.data.Id;
+      if (requestorEmail) requestorId = (await sp.web.ensureUser(requestorEmail)).data.Id;
+      if (assignedToEmail) assignedToId = (await sp.web.ensureUser(assignedToEmail)).data.Id;
 
-const managerItems = await sp.web.lists.getByTitle('Manager_Map')
-  .items
-  .select('ID', 'User_Name/Id', 'User_Name/EMail', 'Manager_Name/Id', 'Manager_Name/EMail')
-  .expand('User_Name', 'Manager_Name')
-  .filter(`User_Name/EMail eq '${requestorEmail}'`)
-  .top(1)
-  .get();
+      const data: any = {
+        Title: ticketTitle,
+        Description: ticketDescription,
+        AssignedOn: assignedOn ? assignedOn.toISOString() : null,
+        SkillsetId: { results: selectedSkillset },
+        Status: selectedTicket ? selectedTicket.Status : 'Submitted'
+      };
+      if (requestorId) data.RequestorId = requestorId;
+      if (assignedToId) data.AssignedToId = assignedToId;
 
-  console.log("📁 Raw Manager_Map items:", managerItems);
+      if (selectedTicket) {
+        await sp.web.lists.getByTitle('Tickets').items.getById(selectedTicket.Id).update(data);
+      } else {
+        await sp.web.lists.getByTitle('Tickets').items.add(data);
+      }
 
-const managerEmail = managerItems?.[0]?.Manager_Name?.EMail;
-if (managerEmail) {
-  const ensuredManager = await sp.web.ensureUser(managerEmail);
-  managerId = ensuredManager.data.Id;
-  console.log("👨‍💼 Manager ID to set:", managerId);
-  console.log("🧾 Will assign to field 'ManagerId'");
-}
+      closeDialog();
+      fetchTickets();
+    } catch (error) {
+      console.error('❌ handleSave error:', error);
     }
-
-    if (assignedToEmail) {
-      const ensuredAssignedTo = await sp.web.ensureUser(assignedToEmail);
-      assignedToId = ensuredAssignedTo.data.Id;
-    }
-
-    const data: any = {
-      Title: ticketTitle,
-      Description: ticketDescription,
-      AssignedOn: assignedOn ? assignedOn.toISOString() : null,
-      SkillsetId: { results: selectedSkillset },
-      Status: selectedTicket ? selectedTicket.Status : 'Submitted'
-    };
-
-    if (requestorId) data.RequestorId = requestorId;
-    if (assignedToId) data.AssignedToId = assignedToId;
-
-    // 👇 Only set Manager on INSERT
-if (!selectedTicket && managerId !== null && managerId !== undefined) {
-  console.log("👨‍💼 Manager ID to set:", managerId);
-  console.log("🧾 Will assign to field 'ManagerId'");
-  data['ManagerId'] = managerId;
-}
-
-
-    if (selectedTicket) {
-      await sp.web.lists.getByTitle('Tickets').items.getById(selectedTicket.Id).update(data);
-    } else {
-      console.log("🧾 Payload being sent to SharePoint:", data);
-      await sp.web.lists.getByTitle('Tickets').items.add(data);
-    }
-
-    closeDialog();
-    fetchTickets();
-  } catch (error) {
-    console.error('❌ handleSave error:', error);
-  }
-};
-
-
+  };
 
     const openEditDialog = async (ticket: any) => {
     setSelectedTicket(ticket);
@@ -200,6 +157,8 @@ if (!selectedTicket && managerId !== null && managerId !== undefined) {
     await sp.web.lists.getByTitle('Tickets').items.getById(id).recycle();
     await fetchTickets();
   };
+
+// 👇 Add this just after handleDelete()
 
 
   const filteredTickets = React.useMemo(() => {

@@ -40,7 +40,7 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
   const [skillsetOptions, setSkillsetOptions] = useState<IDropdownOption[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState<any | null>(null);
-
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const closeDialog = () => {
     setIsDialogOpen(false);
@@ -55,129 +55,129 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
 
 
   useEffect(() => {
-  fetchTickets();
-  const fetchSkillsets = async () => {
-    const skills = await sp.web.lists.getByTitle('Skillset_Master').items.select('Id', 'Title')();
-    setSkillsetOptions(skills.map(s => ({ key: s.Id, text: s.Title })));
-  };
-  fetchSkillsets();
-}, []);
+    fetchTickets();
+    const fetchSkillsets = async () => {
+      const skills = await sp.web.lists.getByTitle('Skillset_Master').items.select('Id', 'Title')();
+      setSkillsetOptions(skills.map(s => ({ key: s.Id, text: s.Title })));
+    };
+    fetchSkillsets();
+  }, []);
 
 
   const fetchTickets = async () => {
-  try {
-    const items = await sp.web.lists.getByTitle('Tickets').items.select(
-      'Id', 'Title', 'Description', 'Status', 'AssignedOn', 'SkillsetId',
-      'Requestor/Title', 'Requestor/EMail',
-      'AssignedTo/Title', 'AssignedTo/EMail',
-      'Manager/Title', 'Manager/EMail'
-    ).expand('Requestor', 'AssignedTo', 'Manager').get();
+    try {
+      const items = await sp.web.lists.getByTitle('Tickets').items.select(
+        'Id', 'Title', 'Description', 'Status', 'AssignedOn', 'SkillsetId',
+        'Requestor/Title', 'Requestor/EMail',
+        'AssignedTo/Title', 'AssignedTo/EMail',
+        'Manager/Title', 'Manager/EMail'
+      ).expand('Requestor', 'AssignedTo', 'Manager').get();
 
-    const skills = await sp.web.lists.getByTitle('Skillset_Master').items.select('Id', 'Title')();
-    const skillMap = new Map(skills.map(s => [s.Id, s.Title]));
+      const skills = await sp.web.lists.getByTitle('Skillset_Master').items.select('Id', 'Title')();
+      const skillMap = new Map(skills.map(s => [s.Id, s.Title]));
 
-const enriched = items.map(item => {
-  console.log('📌 Requestor:', item.Requestor);
-  console.log('📌 AssignedTo:', item.AssignedTo);
+      const enriched = items.map(item => {
+        console.log('📌 Requestor:', item.Requestor);
+        console.log('📌 AssignedTo:', item.AssignedTo);
 
-  return {
-    Id: item.Id,
-    Title: item.Title,
-    Description: item.Description,
-    Status: item.Status,
-    AssignedOn: item.AssignedOn,
-    SkillsetId: item.SkillsetId || [],
-    Skillset: Array.isArray(item.SkillsetId)
-      ? item.SkillsetId.map((id: number) => skillMap.get(id)).filter(Boolean).join(', ')
-      : skillMap.get(item.SkillsetId) || 'Not Assigned',
-    Requestor: item.Requestor?.Title || '',
-    RequestorEmail: item.Requestor?.EMail || item.Requestor?.UserPrincipalName || '',
-    AssignedTo: item.AssignedTo?.Title || '',
-    AssignedToEmail: item.AssignedTo?.EMail || item.AssignedTo?.UserPrincipalName || '',
-    Manager: item.Manager?.Title || ''
+        return {
+          Id: item.Id,
+          Title: item.Title,
+          Description: item.Description,
+          Status: item.Status,
+          AssignedOn: item.AssignedOn,
+          SkillsetId: item.SkillsetId || [],
+          Skillset: Array.isArray(item.SkillsetId)
+            ? item.SkillsetId.map((id: number) => skillMap.get(id)).filter(Boolean).join(', ')
+            : skillMap.get(item.SkillsetId) || 'Not Assigned',
+          Requestor: item.Requestor?.Title || '',
+          RequestorEmail: item.Requestor?.EMail || item.Requestor?.UserPrincipalName || '',
+          AssignedTo: item.AssignedTo?.Title || '',
+          AssignedToEmail: item.AssignedTo?.EMail || item.AssignedTo?.UserPrincipalName || '',
+          Manager: item.Manager?.Title || ''
+        };
+      });
+
+      console.log('🔍 Raw SharePoint items:', items);
+
+
+      setTickets(enriched);
+    } catch (error) {
+      console.error('❌ fetchTickets error:', error);
+    }
   };
-});
-
-console.log('🔍 Raw SharePoint items:', items);
 
 
-    setTickets(enriched);
-  } catch (error) {
-    console.error('❌ fetchTickets error:', error);
-  }
-};
+  const handleSave = async () => {
+    try {
+      const requestorEmail = requestor[0];
+      const assignedToEmail = assignedTo[0];
+      let requestorId = null;
+      let assignedToId = null;
+      let managerId = null;
 
+      if (requestorEmail) {
+        const ensuredRequestor = await sp.web.ensureUser(requestorEmail);
+        requestorId = ensuredRequestor.data.Id;
 
-const handleSave = async () => {
-  try {
-    const requestorEmail = requestor[0];
-    const assignedToEmail = assignedTo[0];
-    let requestorId = null;
-    let assignedToId = null;
-    let managerId = null;
+        const managerItems = await sp.web.lists.getByTitle('Manager_Map')
+          .items
+          .select('ID', 'User_Name/Id', 'User_Name/EMail', 'Manager_Name/Id', 'Manager_Name/EMail')
+          .expand('User_Name', 'Manager_Name')
+          .filter(`User_Name/EMail eq '${requestorEmail}'`)
+          .top(1)
+          .get();
 
-    if (requestorEmail) {
-      const ensuredRequestor = await sp.web.ensureUser(requestorEmail);
-      requestorId = ensuredRequestor.data.Id;
+        console.log("📁 Raw Manager_Map items:", managerItems);
 
-const managerItems = await sp.web.lists.getByTitle('Manager_Map')
-  .items
-  .select('ID', 'User_Name/Id', 'User_Name/EMail', 'Manager_Name/Id', 'Manager_Name/EMail')
-  .expand('User_Name', 'Manager_Name')
-  .filter(`User_Name/EMail eq '${requestorEmail}'`)
-  .top(1)
-  .get();
+        const managerEmail = managerItems?.[0]?.Manager_Name?.EMail;
+        if (managerEmail) {
+          const ensuredManager = await sp.web.ensureUser(managerEmail);
+          managerId = ensuredManager.data.Id;
+          console.log("👨‍💼 Manager ID to set:", managerId);
+          console.log("🧾 Will assign to field 'ManagerId'");
+        }
+      }
 
-  console.log("📁 Raw Manager_Map items:", managerItems);
+      if (assignedToEmail) {
+        const ensuredAssignedTo = await sp.web.ensureUser(assignedToEmail);
+        assignedToId = ensuredAssignedTo.data.Id;
+      }
 
-const managerEmail = managerItems?.[0]?.Manager_Name?.EMail;
-if (managerEmail) {
-  const ensuredManager = await sp.web.ensureUser(managerEmail);
-  managerId = ensuredManager.data.Id;
-  console.log("👨‍💼 Manager ID to set:", managerId);
-  console.log("🧾 Will assign to field 'ManagerId'");
-}
+      const data: any = {
+        Title: ticketTitle,
+        Description: ticketDescription,
+        AssignedOn: assignedOn ? assignedOn.toISOString() : null,
+        SkillsetId: { results: selectedSkillset },
+        Status: selectedTicket ? selectedTicket.Status : 'Submitted'
+      };
+
+      if (requestorId) data.RequestorId = requestorId;
+      if (assignedToId) data.AssignedToId = assignedToId;
+
+      if (managerId !== null && managerId !== undefined) {
+        console.log("👨‍💼 Manager ID to set:", managerId);
+        console.log("🧾 Will assign to field 'ManagerId'");
+        data['ManagerId'] = managerId;
+      }
+
+      if (selectedTicket) {
+        await sp.web.lists.getByTitle('Tickets').items.getById(selectedTicket.Id).update(data);
+      } else {
+        console.log("🧾 Payload being sent to SharePoint:", data);
+        await sp.web.lists.getByTitle('Tickets').items.add(data);
+      }
+
+      closeDialog();
+      fetchTickets();
+    } catch (error) {
+      console.error('❌ handleSave error:', error);
     }
-
-    if (assignedToEmail) {
-      const ensuredAssignedTo = await sp.web.ensureUser(assignedToEmail);
-      assignedToId = ensuredAssignedTo.data.Id;
-    }
-
-    const data: any = {
-      Title: ticketTitle,
-      Description: ticketDescription,
-      AssignedOn: assignedOn ? assignedOn.toISOString() : null,
-      SkillsetId: { results: selectedSkillset },
-      Status: selectedTicket ? selectedTicket.Status : 'Submitted'
-    };
-
-    if (requestorId) data.RequestorId = requestorId;
-    if (assignedToId) data.AssignedToId = assignedToId;
-
-if (managerId !== null && managerId !== undefined) {
-  console.log("👨‍💼 Manager ID to set:", managerId);
-  console.log("🧾 Will assign to field 'ManagerId'");
-  data['ManagerId'] = managerId;
-}
-
-    if (selectedTicket) {
-      await sp.web.lists.getByTitle('Tickets').items.getById(selectedTicket.Id).update(data);
-    } else {
-      console.log("🧾 Payload being sent to SharePoint:", data);
-      await sp.web.lists.getByTitle('Tickets').items.add(data);
-    }
-
-    closeDialog();
-    fetchTickets();
-  } catch (error) {
-    console.error('❌ handleSave error:', error);
-  }
-};
+  };
 
 
 
-    const openEditDialog = async (ticket: any) => {
+  const openEditDialog = async (ticket: any) => {
     setSelectedTicket(ticket);
     setTicketTitle(ticket.Title);
     setTicketDescription(ticket.Description);
@@ -189,37 +189,75 @@ if (managerId !== null && managerId !== undefined) {
   };
 
   const openViewDialog = (item: any) => {
-  setViewItem(item);
-  setIsViewDialogOpen(true);
-};
+    setViewItem(item);
+    setIsViewDialogOpen(true);
+  };
 
-const confirmDelete = async () => {
-  if (ticketToDelete) {
-    await sp.web.lists.getByTitle('Tickets').items.getById(ticketToDelete.Id).recycle();
-    setDeleteConfirmOpen(false);
-    setTicketToDelete(null);
-    await fetchTickets();
-  }
-};
+  const confirmDelete = async () => {
+    if (ticketToDelete) {
+      await sp.web.lists.getByTitle('Tickets').items.getById(ticketToDelete.Id).recycle();
+      setDeleteConfirmOpen(false);
+      setTicketToDelete(null);
+      await fetchTickets();
+    }
+  };
 
   const filteredTickets = React.useMemo(() => {
-    if (selectedRole === 'Support_Manager') return tickets.filter(t => t.Status === 'Submitted');
-    if (selectedRole === 'Support_Seeker') return tickets.filter(t => t.RequestorEmail === loginEmail);
-    return tickets;
+    let result = tickets;
+
+    if (selectedRole === 'Support_Seeker') {
+      result = tickets.filter(t => t.RequestorEmail === loginEmail);
+    }
+
+    if (selectedRole === 'Support_Manager') {
+      const statusOrder: Record<string, number> = {
+        Submitted: 1,
+        Approved: 2,
+        Rejected: 3
+      };
+
+      return [...result].sort(
+        (a, b) =>
+          (statusOrder[a.Status as keyof typeof statusOrder] ?? 99) -
+          (statusOrder[b.Status as keyof typeof statusOrder] ?? 99)
+      );
+    }
+
+    return result;
   }, [tickets, selectedRole, loginEmail]);
 
   const managerGroups = React.useMemo<IGroup[] | undefined>(() => {
     if (selectedRole !== 'Support_Manager') return undefined;
-    return [
-      {
-        key: 'group1',
-        name: 'Submitted Requests',
-        startIndex: 0,
-        count: filteredTickets.length,
-        level: 0,
-        isCollapsed: false
+
+    const grouped: { [key: string]: any[] } = {
+      Submitted: [],
+      Approved: [],
+      Rejected: []
+    };
+
+    filteredTickets.forEach(ticket => {
+      if (grouped[ticket.Status]) grouped[ticket.Status].push(ticket);
+    });
+
+    const groupList: IGroup[] = [];
+    let startIndex = 0;
+
+    for (const status of ['Submitted', 'Approved', 'Rejected']) {
+      const groupItems = grouped[status];
+      if (groupItems.length > 0) {
+        groupList.push({
+          key: status,
+          name: `${status} Requests`,
+          startIndex,
+          count: groupItems.length,
+          level: 0,
+          isCollapsed: false
+        });
+        startIndex += groupItems.length;
       }
-    ];
+    }
+
+    return groupList;
   }, [selectedRole, filteredTickets]);
 
   const columns: IColumn[] = [
@@ -234,37 +272,86 @@ const confirmDelete = async () => {
     {
       key: 'col9',
       name: 'Actions',
-      minWidth: 160,
-      onRender: item => (
-        <Stack horizontal tokens={{ childrenGap: 8 }}>
+      minWidth: 300,
+      onRender: (item: any) => (
+        <Stack horizontal wrap tokens={{ childrenGap: 6 }}>
+          {/* Shared buttons */}
           <IconButton iconProps={{ iconName: 'View' }} onClick={() => openViewDialog(item)} />
-          <IconButton iconProps={{ iconName: 'Edit' }} onClick={() => openEditDialog(item)} />
+          {selectedRole !== 'Support_Manager' && (
+            <IconButton iconProps={{ iconName: 'Edit' }} onClick={() => openEditDialog(item)} />
+          )}
+
           <IconButton iconProps={{ iconName: 'Delete' }} onClick={() => {
             setTicketToDelete(item);
             setDeleteConfirmOpen(true);
-          }}
-          />
-          <Dialog
-  hidden={!deleteConfirmOpen}
-  onDismiss={() => setDeleteConfirmOpen(false)}
-  dialogContentProps={{
-    type: DialogType.normal,
-    title: 'Confirm Delete',
-    subText: `Are you sure you want to delete the ticket "${ticketToDelete?.Title}"?`,
-  }}
->
-  <DialogFooter>
-    <PrimaryButton text="Yes, Delete" onClick={confirmDelete} />
-    <DefaultButton text="Cancel" onClick={() => setDeleteConfirmOpen(false)} />
-  </DialogFooter>
-</Dialog>
+          }} />
 
+          {/* Approve/Reject visible only for Support_Manager and Submitted status */}
+          {selectedRole === 'Support_Manager' && item.Status === 'Submitted' && (
+            <>
+              <PrimaryButton
+                text="Approve"
+                onClick={() => handleApproval(item.Id, 'Approved')}
+                styles={{
+                  root: {
+                    backgroundColor: 'green',
+                    color: 'white',
+                    padding: '0 8px',
+                    minWidth: 80
+                  }
+                }}
+              />
+              <DefaultButton
+                text="Reject"
+                onClick={() => handleApproval(item.Id, 'Rejected')}
+                styles={{
+                  root: {
+                    backgroundColor: 'red',
+                    color: 'white',
+                    padding: '0 8px',
+                    minWidth: 80
+                  }
+                }}
+              />
+            </>
+          )}
+
+          {/* Delete confirmation dialog embedded here */}
+          <Dialog
+            hidden={!deleteConfirmOpen}
+            onDismiss={() => setDeleteConfirmOpen(false)}
+            dialogContentProps={{
+              type: DialogType.normal,
+              title: 'Confirm Delete',
+              subText: `Are you sure you want to delete the ticket "${ticketToDelete?.Title}"?`,
+            }}
+          >
+            <DialogFooter>
+              <PrimaryButton text="Yes, Delete" onClick={confirmDelete} />
+              <DefaultButton text="Cancel" onClick={() => setDeleteConfirmOpen(false)} />
+            </DialogFooter>
+          </Dialog>
         </Stack>
       )
     }
+
   ];
 
-  //3
+  const handleApproval = async (ticketId: number, status: 'Approved' | 'Rejected') => {
+    try {
+      await sp.web.lists.getByTitle('Tickets').items.getById(ticketId).update({ Status: status });
+      setActionMessage(`Ticket ${status} successfully.`);
+      await fetchTickets();
+
+      setTimeout(() => setActionMessage(null), 3000); // Auto-clear message
+    } catch (error) {
+      console.error(`Error updating status to ${status}:`, error);
+      setActionMessage(`Failed to update status.`);
+      setTimeout(() => setActionMessage(null), 3000);
+    }
+  };
+
+
 
   return (
     <Stack tokens={{ childrenGap: 15 }}>
@@ -272,6 +359,13 @@ const confirmDelete = async () => {
         <Text variant="xLarge">🎟️ Tickets</Text>
         <PrimaryButton text="+ Add Ticket" onClick={() => setIsDialogOpen(true)} />
       </Stack>
+
+      {/* ✅ Success message appears here */}
+      {actionMessage && (
+        <Text variant="medium" styles={{ root: { color: 'green', fontWeight: 600 } }}>
+          {actionMessage}
+        </Text>
+      )}
 
       <DetailsList
         items={filteredTickets}
@@ -301,31 +395,31 @@ const confirmDelete = async () => {
               }
             }}
           />
-<Label>Requestor</Label>
-<PeoplePicker
-  context={context}
-  defaultSelectedUsers={requestor}
-  onChange={(items: IPeoplePickerUserItem[]) =>
-    setRequestor(items.map(i => i.secondaryText || ''))
-  }
-  personSelectionLimit={1}
-  showHiddenInUI={false}
-  principalTypes={[1]}
-  resolveDelay={250}
-/>
+          <Label>Requestor</Label>
+          <PeoplePicker
+            context={context}
+            defaultSelectedUsers={requestor}
+            onChange={(items: IPeoplePickerUserItem[]) =>
+              setRequestor(items.map(i => i.secondaryText || ''))
+            }
+            personSelectionLimit={1}
+            showHiddenInUI={false}
+            principalTypes={[1]}
+            resolveDelay={250}
+          />
 
-<Label>Assigned To</Label>
-<PeoplePicker
-  context={context}
-  defaultSelectedUsers={assignedTo}
-  onChange={(items: IPeoplePickerUserItem[]) =>
-    setAssignedTo(items.map(i => i.secondaryText || ''))
-  }
-  personSelectionLimit={1}
-  showHiddenInUI={false}
-  principalTypes={[1]}
-  resolveDelay={250}
-/>
+          <Label>Assigned To</Label>
+          <PeoplePicker
+            context={context}
+            defaultSelectedUsers={assignedTo}
+            onChange={(items: IPeoplePickerUserItem[]) =>
+              setAssignedTo(items.map(i => i.secondaryText || ''))
+            }
+            personSelectionLimit={1}
+            showHiddenInUI={false}
+            principalTypes={[1]}
+            resolveDelay={250}
+          />
 
           <DatePicker label="Assigned On" value={assignedOn} onSelectDate={(date) => setAssignedOn(date || undefined)} />
         </Stack>

@@ -18,7 +18,7 @@ export interface IEditProfileProps {
   userRoles: number[];
   roleOptions: IDropdownOption[];
   onRoleChange: (event: React.FormEvent<HTMLDivElement>, option: IDropdownOption) => void;
-  
+
   loading: boolean;
   skillsetOptions: IDropdownOption[];
   onInputChange: (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string) => void;
@@ -28,7 +28,7 @@ export interface IEditProfileProps {
   onLogout: () => void;
   onEditClick?: () => void;
   onTestClick?: () => void;
-  
+  onProfileUpdate: () => void;
 }
 
 const EditProfile: React.FC<IEditProfileProps> = ({
@@ -42,10 +42,10 @@ const EditProfile: React.FC<IEditProfileProps> = ({
   onLogout,
   onEditClick,
   onTestClick,
-    userRoles,
+  userRoles,
   roleOptions,
   onRoleChange,
-
+  onProfileUpdate
 }) => {
   return (
     <>
@@ -61,18 +61,25 @@ const EditProfile: React.FC<IEditProfileProps> = ({
         selectedKeys={loginForm.skillsets}
         onChange={onSkillsetChange}
       />
-<Dropdown
-  label="User Roles"
-  placeholder="Select roles"
-  multiSelect
-  options={roleOptions}
-  selectedKeys={userRoles}
-  onChange={onRoleChange}
-/>
+      <Dropdown
+        label="User Roles"
+        placeholder="Select roles"
+        multiSelect
+        options={roleOptions}
+        selectedKeys={userRoles}
+        onChange={onRoleChange}
+      />
 
 
       <DialogFooter>
-        <PrimaryButton text="Save" onClick={onSave} disabled={loading || !loginForm.fullName || !loginForm.age} />
+        <PrimaryButton
+          text="Save"
+          onClick={async () => {
+            await onSave();
+            onProfileUpdate();
+          }}
+          disabled={loading || !loginForm.fullName || !loginForm.age}
+        />
         <PrimaryButton text="Back to Dashboard" onClick={onBack} />
       </DialogFooter>
     </>

@@ -9,6 +9,7 @@ import TestPage from './TestPage';
 import TicketList from './TicketList';
 import RegisterForm from './RegisterForm';
 import { ISkillsetUsersProps } from './ISkillsetUsersProps';
+import { FormEvent } from 'react';
 
 const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,41 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
   const [, setShowTestSection] = useState(false);
   const [view, setView] = useState<'dashboard' | 'edit' | 'test' | 'login' | 'register'>('login');
   const [roleOptions, setRoleOptions] = useState<IDropdownOption[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
+
+const handleProfileUpdate = async () => {
+  const currentUser = await sp.web.currentUser.get();
+  const userEmail = currentUser.Email;
+
+  const users = await sp.web.lists.getByTitle("All_Users").items
+    .filter(`Email eq '${userEmail}'`)
+    .select("Id", "User_Role/Title")
+    .expand("User_Role")
+    .top(1)
+    .get();
+
+  const updatedRoles: string[] = users[0]?.User_Role?.map((r: any) => r.Title) || [];
+
+  console.log("🔄 Updated roles from SharePoint:", updatedRoles);
+
+  // ✅ Forcefully assign fallback role — skip the includes() check
+  let fallbackRole = '';
+
+  if (updatedRoles.includes("Support_Seeker")) {
+    fallbackRole = "Support_Seeker";
+  } else if (updatedRoles.includes("Support_Provider")) {
+    fallbackRole = "Support_Provider";
+  } else if (updatedRoles.includes("Support_Manager")) {
+    fallbackRole = "Support_Manager";
+  }
+
+  console.log("✅ Setting selectedRole to:", fallbackRole);
+  setSelectedRole(fallbackRole);
+
+  setReloadKey(prev => prev + 1);
+  setView("dashboard");
+};
+
 
   useEffect(() => {
     const init = async () => {
@@ -103,26 +139,55 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
     });
   };
 
-  const handleRoleChange = (event: React.FormEvent<HTMLDivElement>, option: IDropdownOption): void => {
-    if (option) {
-      const updatedRoles = option.selected
-        ? [...userRoles, option.key as number]
-        : userRoles.filter(id => id !== option.key);
-      setUserRoles(updatedRoles);
-    }
-  };
+const handleRoleChange = (
+  event: FormEvent<HTMLDivElement>,
+  option: IDropdownOption
+): void => {
+  const roleKey = option.key as number;
 
-  const handleSave = async () => {
+  const updatedRoles = option.selected
+    ? [...userRoles, roleKey]
+    : userRoles.filter(id => id !== roleKey);
+
+  setUserRoles(updatedRoles);
+
+  // 🔍 Get text of deselected role
+  const deselectedRoleTitle = roleOptions.find(r => r.key === roleKey)?.text;
+
+  // ✅ If deselected role was currently selected dropdown, pick fallback
+  if (
+    !option.selected && // role was deselected
+    deselectedRoleTitle === selectedRole // the dropdown currently showed this
+  ) {
+    // Find fallback role
+    const fallback = roleOptions.find(
+      r => updatedRoles.includes(r.key as number) &&
+           (r.text === "Support_Seeker" || r.text === "Support_Provider")
+    );
+
+    if (fallback) {
+      console.log("🔁 Auto-updating dropdown to fallback:", fallback.text);
+      setSelectedRole(fallback.text);
+    } else {
+      console.log("⚠️ No fallback role available. Clearing dropdown.");
+      setSelectedRole('');
+    }
+  }
+};
+
+
+  const handleSave = async (): Promise<void> => {
     if (!loginItemId) return;
     setLoading(true);
     try {
+      console.log("📝 Final roles to be saved:", userRoles);
       await sp.web.lists.getByTitle("All_Users").items.getById(loginItemId).update({
         Title: loginForm.fullName,
         Age: parseInt(loginForm.age),
         SkillsetId: { results: loginForm.skillsets },
         User_RoleId: { results: userRoles }
       });
-      setView('dashboard');
+      console.log("📝 Saving roles to SharePoint:", userRoles);
     } catch (error) {
       console.error("Error updating user:", error);
     }
@@ -169,19 +234,26 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
         />
       )}
 
-      {view !== 'login' && view !== 'register' && (
-        <HeaderLayout
-          welcomeName={welcomeName}
-          userRole={selectedRoleTitles}
-          selectedRole={selectedRole}
-          onRoleChange={setSelectedRole}
-          onEditClick={() => setView('edit')}
-          onTestClick={() => setView('test')}
-          onTicketsClick={() => setView('dashboard')}
-          onLogout={handleLogout}
-        >
+{view !== 'login' && view !== 'register' && (
+  <HeaderLayout
+    welcomeName={welcomeName}
+    userRole={selectedRoleTitles}
+    selectedRole={selectedRole}
+    onRoleChange={(role: string) => {
+      console.log("🔁 Role dropdown changed to:", role);
+      setSelectedRole(role);
+    }}
+    onEditClick={() => setView('edit')}
+    onTestClick={() => setView('test')}
+    onTicketsClick={() => setView('dashboard')}
+    onLogout={handleLogout}
+  >
+
           {view === 'dashboard' && (
+            <>
+            {console.log("🎯 TicketList is rendering with selectedRole =", selectedRole)}
 <TicketList
+  key={reloadKey} 
   welcomeName={welcomeName}
   selectedRole={selectedRole}
   loginEmail={loginForm.email}
@@ -194,7 +266,7 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
   onTestClick={() => setView('test')}
   onLogout={handleLogout}
 />
-
+</>
           )}
 
           {view === 'edit' && (
@@ -210,6 +282,7 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
               userRoles={userRoles}
               roleOptions={roleOptions}
               onRoleChange={handleRoleChange}
+              onProfileUpdate={handleProfileUpdate}
             />
           )}
 

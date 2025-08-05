@@ -62,13 +62,17 @@ const HeaderLayout: React.FC<IHeaderLayoutProps> = ({
     }
     const roleOptions: IDropdownOption[] = userRole.map(role => ({ key: role, text: role }));
     return (
-      <Dropdown
-        label=""
-        options={roleOptions}
-        selectedKey={selectedRole}
-        onChange={(e, option) => onRoleChange && onRoleChange(option?.text || '')}
-        styles={{ dropdown: { minWidth: 150 }, title: { background: 'white', color: '#333' } }}
-      />
+<Dropdown
+  label=""
+  options={roleOptions}
+  selectedKey={selectedRole}
+  onChange={(e, option) => onRoleChange && onRoleChange(option?.key as string)}
+  styles={{
+    dropdown: { minWidth: 150 },
+    title: { background: 'white', color: '#333' }
+  }}
+/>
+
     );
   };
 

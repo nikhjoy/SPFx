@@ -163,95 +163,95 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
 
 
 
-const fetchTickets = async () => {
-  try {
-    const items = await sp.web.lists
-      .getByTitle('Tickets')
-      .items.select(
-        'Id', 'Title', 'Description', 'Status', 'AssignedOn', 'SkillsetId',
-        'Requestor/Title', 'Requestor/EMail',
-        'AssignedTo/Title', 'AssignedTo/EMail',
-        'Manager/Title', 'Manager/EMail'
-      )
-      .expand('Requestor', 'AssignedTo', 'Manager')
-      .get();
+  const fetchTickets = async () => {
+    try {
+      const items = await sp.web.lists
+        .getByTitle('Tickets')
+        .items.select(
+          'Id', 'Title', 'Description', 'Status', 'AssignedOn', 'SkillsetId',
+          'Requestor/Title', 'Requestor/EMail',
+          'AssignedTo/Title', 'AssignedTo/EMail',
+          'Manager/Title', 'Manager/EMail'
+        )
+        .expand('Requestor', 'AssignedTo', 'Manager')
+        .get();
 
-    const skills = await sp.web.lists.getByTitle('Skillset_Master').items.select('Id', 'Title')();
-    const skillMap = new Map(skills.map(s => [s.Id, s.Title]));
+      const skills = await sp.web.lists.getByTitle('Skillset_Master').items.select('Id', 'Title')();
+      const skillMap = new Map(skills.map(s => [s.Id, s.Title]));
 
-    const enriched = items.map(item => {
-      // 🔁 Normalize legacy statuses so tabs & filters work consistently
-      const rawStatus = String(item.Status || '').trim();
-      const normalizedStatus =
-        rawStatus.toLowerCase() === 'approved'   ? STATUS.ManagerApproved  :
-        rawStatus.toLowerCase() === 'rejected'   ? STATUS.ManagerRejected  :
-        rawStatus.toLowerCase() === 'submitted'  ? STATUS.Submitted        :
-        rawStatus; // keep other values as-is (e.g., Provider Accepted/Rejected)
+      const enriched = items.map(item => {
+        // 🔁 Normalize legacy statuses so tabs & filters work consistently
+        const rawStatus = String(item.Status || '').trim();
+        const normalizedStatus =
+          rawStatus.toLowerCase() === 'approved' ? STATUS.ManagerApproved :
+            rawStatus.toLowerCase() === 'rejected' ? STATUS.ManagerRejected :
+              rawStatus.toLowerCase() === 'submitted' ? STATUS.Submitted :
+                rawStatus; // keep other values as-is (e.g., Provider Accepted/Rejected)
 
-      console.log('📌 Requestor:', item.Requestor);
-      console.log('📌 AssignedTo:', item.AssignedTo);
+        console.log('📌 Requestor:', item.Requestor);
+        console.log('📌 AssignedTo:', item.AssignedTo);
 
-      return {
-        Id: item.Id,
-        Title: item.Title,
-        Description: item.Description,
-        Status: normalizedStatus, // 👈 use normalized value
-        AssignedOn: item.AssignedOn,
-        SkillsetId: item.SkillsetId || [],
-        Skillset: Array.isArray(item.SkillsetId)
-          ? item.SkillsetId.map((id: number) => skillMap.get(id)).filter(Boolean).join(', ')
-          : (skillMap.get(item.SkillsetId) || 'Not Assigned'),
-        Requestor: item.Requestor?.Title || '',
-        RequestorEmail: item.Requestor?.EMail || item.Requestor?.UserPrincipalName || '',
-        AssignedTo: item.AssignedTo?.Title || '',
-        AssignedToEmail: item.AssignedTo?.EMail || item.AssignedTo?.UserPrincipalName || '',
-        Manager: item.Manager?.Title || '',
-        ManagerEmail: item.Manager?.EMail || item.Manager?.UserPrincipalName || ''
-      };
-    });
+        return {
+          Id: item.Id,
+          Title: item.Title,
+          Description: item.Description,
+          Status: normalizedStatus, // 👈 use normalized value
+          AssignedOn: item.AssignedOn,
+          SkillsetId: item.SkillsetId || [],
+          Skillset: Array.isArray(item.SkillsetId)
+            ? item.SkillsetId.map((id: number) => skillMap.get(id)).filter(Boolean).join(', ')
+            : (skillMap.get(item.SkillsetId) || 'Not Assigned'),
+          Requestor: item.Requestor?.Title || '',
+          RequestorEmail: item.Requestor?.EMail || item.Requestor?.UserPrincipalName || '',
+          AssignedTo: item.AssignedTo?.Title || '',
+          AssignedToEmail: item.AssignedTo?.EMail || item.AssignedTo?.UserPrincipalName || '',
+          Manager: item.Manager?.Title || '',
+          ManagerEmail: item.Manager?.EMail || item.Manager?.UserPrincipalName || ''
+        };
+      });
 
-    console.log('🔍 Raw SharePoint items:', items);
-    console.groupCollapsed('FETCH ▶ tickets');
-    console.log('login:', (loginEmail || '').toLowerCase(), 'role:', selectedRole);
-    console.log('total fetched:', enriched.length);
+      console.log('🔍 Raw SharePoint items:', items);
+      console.groupCollapsed('FETCH ▶ tickets');
+      console.log('login:', (loginEmail || '').toLowerCase(), 'role:', selectedRole);
+      console.log('total fetched:', enriched.length);
 
-    console.table(
-      enriched.slice(0, 10).map(t => ({
-        Id: t.Id,
-        Status: t.Status,
-        Manager: t.Manager,
-        ManagerEmail: (t.ManagerEmail || '').toLowerCase(),
-        RequestorEmail: (t.RequestorEmail || '').toLowerCase(),
-        AssignedToEmail: (t.AssignedToEmail || '').toLowerCase()
-      }))
-    );
-    console.groupEnd();
+      console.table(
+        enriched.slice(0, 10).map(t => ({
+          Id: t.Id,
+          Status: t.Status,
+          Manager: t.Manager,
+          ManagerEmail: (t.ManagerEmail || '').toLowerCase(),
+          RequestorEmail: (t.RequestorEmail || '').toLowerCase(),
+          AssignedToEmail: (t.AssignedToEmail || '').toLowerCase()
+        }))
+      );
+      console.groupEnd();
 
-    setTickets(enriched);
+      setTickets(enriched);
 
-    const uniqueRequestors = Array.from(new Set(enriched.map(t => t.Requestor).filter(Boolean)));
-    const requestorOptions = uniqueRequestors.map(name => ({ key: name, text: name }));
-    setRequestorFilterOptions(requestorOptions);
-    setSelectedRequestors(requestorOptions.map(opt => opt.key as string)); // all selected
+      const uniqueRequestors = Array.from(new Set(enriched.map(t => t.Requestor).filter(Boolean)));
+      const requestorOptions = uniqueRequestors.map(name => ({ key: name, text: name }));
+      setRequestorFilterOptions(requestorOptions);
+      setSelectedRequestors(requestorOptions.map(opt => opt.key as string)); // all selected
 
-    const uniqueAssignedTo = Array.from(new Set(enriched.map(t => t.AssignedTo).filter(Boolean)));
-    const assignedToOptions = uniqueAssignedTo.map(name => ({ key: name, text: name }));
-    setAssignedToFilterOptions(assignedToOptions);
-    setSelectedAssignedTo(assignedToOptions.map(opt => opt.key as string));
+      const uniqueAssignedTo = Array.from(new Set(enriched.map(t => t.AssignedTo).filter(Boolean)));
+      const assignedToOptions = uniqueAssignedTo.map(name => ({ key: name, text: name }));
+      setAssignedToFilterOptions(assignedToOptions);
+      setSelectedAssignedTo(assignedToOptions.map(opt => opt.key as string));
 
-    const uniqueManagers = Array.from(new Set(enriched.map(t => t.Manager).filter(Boolean)));
-    const managerOptions = uniqueManagers.map(name => ({ key: name, text: name }));
-    setManagerFilterOptions(managerOptions);
-    setSelectedManagers(managerOptions.map(opt => opt.key as string));
+      const uniqueManagers = Array.from(new Set(enriched.map(t => t.Manager).filter(Boolean)));
+      const managerOptions = uniqueManagers.map(name => ({ key: name, text: name }));
+      setManagerFilterOptions(managerOptions);
+      setSelectedManagers(managerOptions.map(opt => opt.key as string));
 
-    const uniqueStatuses = Array.from(new Set(enriched.map(t => t.Status).filter(Boolean)));
-    const statusOptions = uniqueStatuses.map(name => ({ key: name, text: name }));
-    setStatusFilterOptions(statusOptions);
-    setSelectedStatuses(statusOptions.map(opt => opt.key as string));
-  } catch (error) {
-    console.error('❌ fetchTickets error:', error);
-  }
-};
+      const uniqueStatuses = Array.from(new Set(enriched.map(t => t.Status).filter(Boolean)));
+      const statusOptions = uniqueStatuses.map(name => ({ key: name, text: name }));
+      setStatusFilterOptions(statusOptions);
+      setSelectedStatuses(statusOptions.map(opt => opt.key as string));
+    } catch (error) {
+      console.error('❌ fetchTickets error:', error);
+    }
+  };
 
   //end of part 1
 
@@ -383,61 +383,42 @@ const fetchTickets = async () => {
 
     // --- 1) Apply TAB FILTERS FIRST ---
     if (managerTab && normalizedLogin) {
-if (selectedRole === 'Support_Manager') {
-  if (managerTab === 'Pending') {
-    const pending = tickets.filter(
-      t =>
-        String(t.Status || '') === STATUS.Submitted &&
-        String(t.ManagerEmail || '').trim().toLowerCase() === normalizedLogin
-    );
-    console.groupCollapsed('TAB ▶ Pending (Manager)');
-    console.log({ normalizedLogin, total: tickets.length, pending: pending.length });
-    console.groupEnd();
-    return pending;
-  }
+      if (selectedRole === 'Support_Manager') {
+        if (managerTab === 'Pending') {
+          const pending = tickets.filter(
+            t =>
+              String(t.Status || '') === STATUS.Submitted &&
+              String(t.ManagerEmail || '').trim().toLowerCase() === normalizedLogin
+          );
+          return pending;
+        }
 
-  if (managerTab === 'Approved') {
-    const approvedAll = tickets.filter(t => String(t.Status || '') === STATUS.ManagerApproved);
-    const approvedMine = approvedAll.filter(
-      t => String(t.ManagerEmail || '').trim().toLowerCase() === normalizedLogin
-    );
+        if (managerTab === 'Approved') {
+          const mine = tickets.filter(
+            t =>
+              (
+                String(t.Status || '') === STATUS.ManagerApproved ||
+                String(t.Status || '') === STATUS.ProviderAccepted
+              ) &&
+              String(t.ManagerEmail || '').trim().toLowerCase() === normalizedLogin
+          );
+          return mine;
+        }
 
-    console.groupCollapsed('TAB ▶ Approved (Manager)');
-    console.log({
-      normalizedLogin,
-      approvedAll: approvedAll.length,
-      approvedMine: approvedMine.length,
-      sampleAll: approvedAll.slice(0, 5).map(t => ({ id: t.Id, mgr: t.ManagerEmail })),
-      sampleMine: approvedMine.slice(0, 5).map(t => ({ id: t.Id, mgr: t.ManagerEmail })),
-    });
-    console.groupEnd();
+        if (managerTab === 'Rejected') {
+          const mine = tickets.filter(
+            t =>
+              (
+                String(t.Status || '') === STATUS.ManagerRejected ||
+                String(t.Status || '') === STATUS.ProviderRejected
+              ) &&
+              String(t.ManagerEmail || '').trim().toLowerCase() === normalizedLogin
+          );
+          return mine;
+        }
 
-    // ✅ Prefer "mine"; if none (legacy rows missing ManagerEmail), fall back to all
-    return approvedMine.length > 0 ? approvedMine : approvedAll;
-  }
-
-  if (managerTab === 'Rejected') {
-    const rejectedAll = tickets.filter(t => String(t.Status || '') === STATUS.ManagerRejected);
-    const rejectedMine = rejectedAll.filter(
-      t => String(t.ManagerEmail || '').trim().toLowerCase() === normalizedLogin
-    );
-
-    console.groupCollapsed('TAB ▶ Rejected (Manager)');
-    console.log({
-      normalizedLogin,
-      rejectedAll: rejectedAll.length,
-      rejectedMine: rejectedMine.length,
-      sampleAll: rejectedAll.slice(0, 5).map(t => ({ id: t.Id, mgr: t.ManagerEmail })),
-      sampleMine: rejectedMine.slice(0, 5).map(t => ({ id: t.Id, mgr: t.ManagerEmail })),
-    });
-    console.groupEnd();
-
-    // ✅ Prefer "mine"; if none, fall back to all
-    return rejectedMine.length > 0 ? rejectedMine : rejectedAll;
-  }
-
-  return result;
-}
+        return result;
+      }
 
       else if (selectedRole === 'Support_Seeker') {
         if (managerTab === 'Pending') {
@@ -526,26 +507,60 @@ if (selectedRole === 'Support_Manager') {
     }
 
     // --- 3) Column header filters (unchanged) ---
-    if (selectedRequestors.length > 0) {
-      result = result.filter(t => selectedRequestors.includes(t.Requestor));
-    }
-    if (selectedAssignedTo.length > 0) {
-      result = result.filter(t => selectedAssignedTo.includes(t.AssignedTo));
-    }
-    if (selectedManagers.length > 0) {
-      const skipManagerFilterOnPending =
-        selectedRole === 'Support_Manager' && managerTab === 'Pending'; // ✅
-
-      if (!skipManagerFilterOnPending) {
-        result = result.filter(t => selectedManagers.includes(t.Manager));
-      }
-    }
-    if (selectedStatuses.length > 0) {
-      result = result.filter(t => selectedStatuses.includes(t.Status));
-    }
-
-    console.log('FILTER ▶ end count:', result.length, 'firstIds:', result.slice(0, 5).map(t => t.Id));
+    // --- 3) Column header filters (with safe skips for Manager tabs) ---
+    console.groupCollapsed('FILTER ▶ before column filters');
+    console.log('counts:', {
+      before: result.length,
+      reqSel: selectedRequestors.length,
+      asgSel: selectedAssignedTo.length,
+      mgrSel: selectedManagers.length,
+      stSel: selectedStatuses.length,
+      managerTab,
+      role: selectedRole
+    });
     console.groupEnd();
+
+    // Requestor
+    if (selectedRequestors.length > 0) {
+      result = result.filter(t => !t.Requestor || selectedRequestors.includes(t.Requestor));
+    }
+
+    // Assigned To
+    if (selectedAssignedTo.length > 0) {
+      result = result.filter(t => !t.AssignedTo || selectedAssignedTo.includes(t.AssignedTo));
+    }
+
+    // Manager — SKIP on Manager tabs (Pending/Approved/Rejected) so blank Manager names don't hide rows
+    // --- 3) Column header filters ---
+    /* ...existing Requestor / AssignedTo filters... */
+
+    // Manager — skip on Manager tabs
+    const skipManagerFilter =
+      selectedRole === 'Support_Manager' &&
+      (managerTab === 'Pending' || managerTab === 'Approved' || managerTab === 'Rejected');
+
+    if (!skipManagerFilter && selectedManagers.length > 0) {
+      result = result.filter(t => !t.Manager || selectedManagers.includes(t.Manager));
+    }
+
+    // Status — skip on Manager tabs so ProviderAccepted/Rejected aren't hidden
+    const skipStatusFilter =
+      selectedRole === 'Support_Manager' &&
+      (managerTab === 'Pending' || managerTab === 'Approved' || managerTab === 'Rejected');
+
+    if (!skipStatusFilter && selectedStatuses.length > 0) {
+      result = result.filter(t => selectedStatuses.includes(String(t.Status || '')));
+    }
+
+    // Status
+    if (selectedStatuses.length > 0) {
+      result = result.filter(t => selectedStatuses.includes(String(t.Status || '')));
+    }
+
+    console.groupCollapsed('FILTER ▶ after column filters');
+    console.log('after count:', result.length, 'firstIds:', result.slice(0, 5).map(t => t.Id));
+    console.groupEnd();
+
     return result;
   }, [
     tickets,
@@ -560,39 +575,40 @@ if (selectedRole === 'Support_Manager') {
   ]);
 
 
-
   const managerGroups = React.useMemo<IGroup[] | undefined>(() => {
     if (selectedRole !== 'Support_Manager') return undefined;
 
-    const grouped: { [key: string]: any[] } = {
-      Submitted: [],
-      Approved: [],
-      Rejected: []
+    const buckets: Record<string, any[]> = {
+      [STATUS.Submitted]: [],
+      [STATUS.ManagerApproved]: [],
+      [STATUS.ManagerRejected]: []
     };
 
-    filteredTickets.forEach(ticket => {
-      if (grouped[ticket.Status]) grouped[ticket.Status].push(ticket);
+    filteredTickets.forEach(t => {
+      if (buckets[t.Status]) buckets[t.Status].push(t);
     });
 
-    const groupList: IGroup[] = [];
+    const order = [STATUS.Submitted, STATUS.ManagerApproved, STATUS.ManagerRejected];
+    const groups: IGroup[] = [];
     let startIndex = 0;
 
-    for (const status of ['Submitted', 'Approved', 'Rejected']) {
-      const groupItems = grouped[status];
-      if (groupItems.length > 0) {
-        groupList.push({
+    for (const status of order) {
+      const arr = buckets[status];
+      if (arr.length > 0) {
+        groups.push({
           key: status,
           name: `${status} Requests`,
           startIndex,
-          count: groupItems.length,
+          count: arr.length,
           level: 0,
           isCollapsed: false
         });
-        startIndex += groupItems.length;
+        startIndex += arr.length;
       }
     }
 
-    return groupList;
+    // ⚠️ Important: if no groups, return undefined so DetailsList shows items normally
+    return groups.length ? groups : undefined;
   }, [selectedRole, filteredTickets]);
 
   //end of part 2
@@ -675,89 +691,90 @@ if (selectedRole === 'Support_Manager') {
       onRenderHeader: onRenderHeader
     },
 
-{
-  key: 'col9',
-  name: 'Actions',
-  minWidth: 300,
-  onRender: (item: any) => (
-    <Stack horizontal wrap tokens={{ childrenGap: 6 }}>
-      {/* Always: View */}
-      <IconButton iconProps={{ iconName: 'View' }} onClick={() => openViewDialog(item)} />
+    {
+      key: 'col9',
+      name: 'Actions',
+      minWidth: 300,
+      onRender: (item: any) => (
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+          {/* Always: View */}
+          <IconButton iconProps={{ iconName: 'View' }} onClick={() => openViewDialog(item)} />
 
-      {/* Support_Manager: show Approve/Reject only on Submitted */}
-      {selectedRole === 'Support_Manager' && item.Status === STATUS.Submitted && (
-        <>
-          <PrimaryButton
-            text="Approve"
-            onClick={() => handleApproval(item.Id, 'Approved')}
-            styles={{ root: { backgroundColor: 'green', color: 'white', padding: '0 8px', minWidth: 80 } }}
-          />
-          <DefaultButton
-            text="Reject"
-            onClick={() => handleApproval(item.Id, 'Rejected')}
-            styles={{ root: { backgroundColor: 'red', color: 'white', padding: '0 8px', minWidth: 80 } }}
-          />
-        </>
-      )}
-
-      {/* Support_Provider: ONLY Accept/Reject as Provider (NO edit/delete) */}
-      {selectedRole === 'Support_Provider' &&
-        item.Status === STATUS.ManagerApproved &&
-        (!item.AssignedToEmail || item.AssignedToEmail.trim() === '') &&
-        Array.isArray(item.SkillsetId) &&
-        item.SkillsetId.some((id: number) => providerSkillIds.includes(id)) && (
-          <Stack horizontal tokens={{ childrenGap: 6 }}>
-            <PrimaryButton
-              text="Accept as Provider"
-              onClick={() => acceptRequest(item.Id)}
-              styles={{ root: { padding: '0 8px', minWidth: 140 } }}
-            />
-            <DefaultButton
-              text="Reject as Provider"
-              onClick={() => rejectAsProvider(item.Id)}
-              styles={{ root: { padding: '0 8px', minWidth: 140 } }}
-            />
-          </Stack>
-        )
-      }
-
-      {/* Everyone else (NOT Support_Provider): Edit/Delete as before */}
-      {selectedRole !== 'Support_Provider' && (
-        <>
-          {(
-            selectedRole !== 'Support_Manager' ||
-            (selectedRole === 'Support_Manager' &&
-              item.Status === STATUS.ManagerApproved &&
-              ((item.ManagerEmail || '').toLowerCase() === (loginEmail || '').toLowerCase()))
-          ) && (
-            <IconButton iconProps={{ iconName: 'Edit' }} onClick={() => openEditDialog(item)} />
+          {/* Support_Manager: show Approve/Reject only on Submitted */}
+          {selectedRole === 'Support_Manager' && item.Status === STATUS.Submitted && (
+            <>
+              <PrimaryButton
+                text="Approve"
+                onClick={() => handleApproval(item.Id, 'Approved')}
+                styles={{ root: { backgroundColor: 'green', color: 'white', padding: '0 8px', minWidth: 90 } }}
+              />
+              <DefaultButton
+                text="Reject"
+                onClick={() => handleApproval(item.Id, 'Rejected')}
+                styles={{ root: { backgroundColor: 'red', color: 'white', padding: '0 8px', minWidth: 90 } }}
+              />
+            </>
           )}
 
-          <IconButton
-            iconProps={{ iconName: 'Delete' }}
-            onClick={() => { setTicketToDelete(item); setDeleteConfirmOpen(true); }}
-          />
-        </>
-      )}
+          {/* Support_Provider: ONLY Accept/Reject as Provider (NO edit/delete) */}
+          {selectedRole === 'Support_Provider' &&
+            item.Status === STATUS.ManagerApproved &&
+            (!item.AssignedToEmail || item.AssignedToEmail.trim() === '') &&
+            Array.isArray(item.SkillsetId) &&
+            item.SkillsetId.some((id: number) => providerSkillIds.includes(id)) && (
+              <>
+                <PrimaryButton
+                  text="Provider Accept"
+                  onClick={() => acceptRequest(item.Id)}
+                  styles={{ root: { padding: '0 8px', minWidth: 140 } }}
+                />
+                <DefaultButton
+                  text="Provider Reject"
+                  onClick={() => rejectAsProvider(item.Id)}
+                  styles={{ root: { padding: '0 8px', minWidth: 140 } }}
+                />
+              </>
+            )
+          }
 
-      {/* Delete confirmation dialog stays here */}
-      <Dialog
-        hidden={!deleteConfirmOpen}
-        onDismiss={() => setDeleteConfirmOpen(false)}
-        dialogContentProps={{
-          type: DialogType.normal,
-          title: 'Confirm Delete',
-          subText: `Are you sure you want to delete the ticket "${ticketToDelete?.Title}"?`,
-        }}
-      >
-        <DialogFooter>
-          <PrimaryButton text="Yes, Delete" onClick={confirmDelete} />
-          <DefaultButton text="Cancel" onClick={() => setDeleteConfirmOpen(false)} />
-        </DialogFooter>
-      </Dialog>
-    </Stack>
-  )
-}
+          {/* Everyone else (NOT Support_Provider): Edit/Delete as before */}
+          {selectedRole !== 'Support_Provider' && (
+            <>
+              {(
+                selectedRole !== 'Support_Manager' ||
+                (selectedRole === 'Support_Manager' &&
+                  item.Status === STATUS.ManagerApproved &&
+                  ((item.ManagerEmail || '').toLowerCase() === (loginEmail || '').toLowerCase()))
+              ) && (
+                  <IconButton iconProps={{ iconName: 'Edit' }} onClick={() => openEditDialog(item)} />
+                )}
+
+              <IconButton
+                iconProps={{ iconName: 'Delete' }}
+                onClick={() => { setTicketToDelete(item); setDeleteConfirmOpen(true); }}
+              />
+            </>
+          )}
+
+          {/* Delete confirmation dialog stays here */}
+          <Dialog
+            hidden={!deleteConfirmOpen}
+            onDismiss={() => setDeleteConfirmOpen(false)}
+            dialogContentProps={{
+              type: DialogType.normal,
+              title: 'Confirm Delete',
+              subText: `Are you sure you want to delete the ticket "${ticketToDelete?.Title}"?`,
+            }}
+          >
+            <DialogFooter>
+              <PrimaryButton text="Yes, Delete" onClick={confirmDelete} />
+              <DefaultButton text="Cancel" onClick={() => setDeleteConfirmOpen(false)} />
+            </DialogFooter>
+          </Dialog>
+        </Stack>
+      )
+    }
+
 
   ];
 
@@ -801,8 +818,9 @@ if (selectedRole === 'Support_Manager') {
     try {
       const newStatus =
         decision === 'Approved' ? STATUS.ManagerApproved : STATUS.ManagerRejected;
+      const ensuredMgr = await sp.web.ensureUser(loginEmail);
 
-      await sp.web.lists.getByTitle('Tickets').items.getById(ticketId).update({ Status: newStatus });
+      await sp.web.lists.getByTitle('Tickets').items.getById(ticketId).update({ Status: newStatus, ManagerId: ensuredMgr.data.Id });
       setActionMessage(`Ticket ${decision} successfully.`);
       await fetchTickets();
       setTimeout(() => setActionMessage(null), 3000);
@@ -817,74 +835,80 @@ if (selectedRole === 'Support_Manager') {
   console.log("📌 Callout visible:", isRequestorFilterCalloutVisible);
   console.log("📌 Anchor element:", requestorFilterAnchor);
 
-  const statusOrder: Record<string, number> = {
-    [STATUS.Submitted]: 1,
-    [STATUS.ManagerApproved]: 2,
-    [STATUS.ProviderAccepted]: 3,
-    [STATUS.ManagerRejected]: 4,
-    [STATUS.ProviderRejected]: 5,
-  };
 
 
   const itemsForList = React.useMemo(() => {
     if (!managerGroups) return filteredTickets;
-    return [...filteredTickets].sort(
-      (a, b) => (statusOrder[a.Status] ?? 99) - (statusOrder[b.Status] ?? 99)
-    );
+
+    // Keep item order aligned with groups (Submitted → Manager Approved → Manager Rejected)
+    const ordered = [
+      ...filteredTickets.filter(t => t.Status === STATUS.Submitted),
+      ...filteredTickets.filter(t => t.Status === STATUS.ManagerApproved),
+      ...filteredTickets.filter(t => t.Status === STATUS.ManagerRejected),
+    ];
+
+    console.groupCollapsed('GROUP ▶ ordered items');
+    console.log({
+      submitted: ordered.filter(t => t.Status === STATUS.Submitted).length,
+      managerApproved: ordered.filter(t => t.Status === STATUS.ManagerApproved).length,
+      managerRejected: ordered.filter(t => t.Status === STATUS.ManagerRejected).length
+    });
+    console.groupEnd();
+
+    return ordered;
   }, [filteredTickets, managerGroups]);
+
 
   return (
     <Stack tokens={{ childrenGap: 15 }}>
 
-      <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 10 }} wrap>
+      <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }} wrap={false}>
         {/* LEFT: Role-based Tabs */}
-        <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
-          {selectedRole === 'Support_Provider' ? (
-            <>
-              <PrimaryButton
-                text="All Admin Accepted Tickets"
-                onClick={() => setManagerTab('AllAccepted')}
-                styles={{ root: { backgroundColor: managerTab === 'AllAccepted' ? '#0078d4' : undefined, color: 'white' } }}
-              />
-              <PrimaryButton
-                text="Your matching tickets"
-                onClick={() => setManagerTab('Matching')}
-                styles={{ root: { backgroundColor: managerTab === 'Matching' ? '#0078d4' : undefined, color: 'white' } }}
-              />
-              <PrimaryButton
-                text="Approved by You"
-                onClick={() => setManagerTab('ApprovedByYou')}
-                styles={{ root: { backgroundColor: managerTab === 'ApprovedByYou' ? '#0078d4' : undefined, color: 'white' } }}
-              />
-              <PrimaryButton
-                text="Rejected by You"
-                onClick={() => setManagerTab('RejectedByYou')}
-                styles={{ root: { backgroundColor: managerTab === 'RejectedByYou' ? '#0078d4' : undefined, color: 'white' } }}
-              />
-            </>
-          ) : (
-            <>
-              <PrimaryButton
-                text={selectedRole === 'Support_Manager' ? 'Pending Requests' : 'Submitted Tickets'}
-                onClick={() => setManagerTab('Pending')}
-                styles={{ root: { backgroundColor: managerTab === 'Pending' ? '#0078d4' : undefined, color: 'white' } }}
-              />
-              <PrimaryButton
-                text="Approved"
-                onClick={() => setManagerTab('Approved')}
-                styles={{ root: { backgroundColor: managerTab === 'Approved' ? '#0078d4' : undefined, color: 'white' } }}
-              />
-              <PrimaryButton
-                text="Rejected"
-                onClick={() => setManagerTab('Rejected')}
-                styles={{ root: { backgroundColor: managerTab === 'Rejected' ? '#0078d4' : undefined, color: 'white' } }}
-              />
-            </>
-          )}
-        </Stack>
+        {selectedRole === 'Support_Provider' ? (
+          <Stack horizontal tokens={{ childrenGap: 8 }} wrap={false}>
+            <PrimaryButton
+              text="All Admin Accepted Tickets"
+              onClick={() => setManagerTab('AllAccepted')}
+              styles={{ root: { backgroundColor: managerTab === 'AllAccepted' ? '#0078d4' : undefined, color: 'white' } }}
+            />
+            <PrimaryButton
+              text="Your matching tickets"
+              onClick={() => setManagerTab('Matching')}
+              styles={{ root: { backgroundColor: managerTab === 'Matching' ? '#0078d4' : undefined, color: 'white' } }}
+            />
+            <PrimaryButton
+              text="Approved by You"
+              onClick={() => setManagerTab('ApprovedByYou')}
+              styles={{ root: { backgroundColor: managerTab === 'ApprovedByYou' ? '#0078d4' : undefined, color: 'white' } }}
+            />
+            <PrimaryButton
+              text="Rejected by You"
+              onClick={() => setManagerTab('RejectedByYou')}
+              styles={{ root: { backgroundColor: managerTab === 'RejectedByYou' ? '#0078d4' : undefined, color: 'white' } }}
+            />
+          </Stack>
+        ) : (
+          <Stack horizontal tokens={{ childrenGap: 8 }} wrap={false}>
+            <PrimaryButton
+              text={selectedRole === 'Support_Manager' ? 'Pending Requests' : 'Submitted Tickets'}
+              onClick={() => setManagerTab('Pending')}
+              styles={{ root: { backgroundColor: managerTab === 'Pending' ? '#0078d4' : undefined, color: 'white' } }}
+            />
+            <PrimaryButton
+              text="Approved"
+              onClick={() => setManagerTab('Approved')}
+              styles={{ root: { backgroundColor: managerTab === 'Approved' ? '#0078d4' : undefined, color: 'white' } }}
+            />
+            <PrimaryButton
+              text="Rejected"
+              onClick={() => setManagerTab('Rejected')}
+              styles={{ root: { backgroundColor: managerTab === 'Rejected' ? '#0078d4' : undefined, color: 'white' } }}
+            />
+          </Stack>
+        )}
 
-        {/* RIGHT: Add and Clear Filters */}
-        <Stack horizontal tokens={{ childrenGap: 10 }} wrap>
+        {/* RIGHT: Clear + Add (Add only for Seeker) */}
+        <Stack horizontal tokens={{ childrenGap: 10 }} wrap={false}>
           <PrimaryButton
             text="Clear Filters"
             onClick={() => {
@@ -898,12 +922,14 @@ if (selectedRole === 'Support_Manager') {
               setIsManagerCalloutVisible(false);
               setIsStatusCalloutVisible(false);
             }}
-            styles={{ root: { backgroundColor: '#d83b01', color: 'white', padding: '0 12px', minWidth: 100 } }}
+            styles={{ root: { backgroundColor: '#d83b01', color: 'white', padding: '0 12px', minWidth: 120 } }}
           />
-          <PrimaryButton text="+ Add Ticket" onClick={openAddDialog} />
+
+          {selectedRole === 'Support_Seeker' && (
+            <PrimaryButton text="+ Add Ticket" onClick={openAddDialog} />
+          )}
         </Stack>
       </Stack>
-
 
       {/* ✅ Success message appears here */}
       {actionMessage && (

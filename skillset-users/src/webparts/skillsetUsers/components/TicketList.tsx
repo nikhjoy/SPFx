@@ -862,51 +862,65 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
   return (
     <Stack tokens={{ childrenGap: 15 }}>
 
-      <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }} wrap={false}>
-        {/* LEFT: Role-based Tabs */}
-        {selectedRole === 'Support_Provider' ? (
-          <Stack horizontal tokens={{ childrenGap: 8 }} wrap={false}>
-            <PrimaryButton
-              text="All Admin Accepted Tickets"
-              onClick={() => setManagerTab('AllAccepted')}
-              styles={{ root: { backgroundColor: managerTab === 'AllAccepted' ? '#0078d4' : undefined, color: 'white' } }}
-            />
-            <PrimaryButton
-              text="Your matching tickets"
-              onClick={() => setManagerTab('Matching')}
-              styles={{ root: { backgroundColor: managerTab === 'Matching' ? '#0078d4' : undefined, color: 'white' } }}
-            />
-            <PrimaryButton
-              text="Approved by You"
-              onClick={() => setManagerTab('ApprovedByYou')}
-              styles={{ root: { backgroundColor: managerTab === 'ApprovedByYou' ? '#0078d4' : undefined, color: 'white' } }}
-            />
-            <PrimaryButton
-              text="Rejected by You"
-              onClick={() => setManagerTab('RejectedByYou')}
-              styles={{ root: { backgroundColor: managerTab === 'RejectedByYou' ? '#0078d4' : undefined, color: 'white' } }}
-            />
-          </Stack>
-        ) : (
-          <Stack horizontal tokens={{ childrenGap: 8 }} wrap={false}>
-            <PrimaryButton
-              text={selectedRole === 'Support_Manager' ? 'Pending Requests' : 'Submitted Tickets'}
-              onClick={() => setManagerTab('Pending')}
-              styles={{ root: { backgroundColor: managerTab === 'Pending' ? '#0078d4' : undefined, color: 'white' } }}
-            />
-            <PrimaryButton
-              text="Approved"
-              onClick={() => setManagerTab('Approved')}
-              styles={{ root: { backgroundColor: managerTab === 'Approved' ? '#0078d4' : undefined, color: 'white' } }}
-            />
-            <PrimaryButton
-              text="Rejected"
-              onClick={() => setManagerTab('Rejected')}
-              styles={{ root: { backgroundColor: managerTab === 'Rejected' ? '#0078d4' : undefined, color: 'white' } }}
-            />
-          </Stack>
-        )}
-
+<Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }} wrap={false}>
+  {/* LEFT: Role-based Tabs */}
+  {selectedRole === 'Support_Provider' ? (
+    <Stack horizontal tokens={{ childrenGap: 0 }} wrap={false} styles={{ root: { borderBottom: '2px solid #ddd' } }}>
+      {[
+        { key: 'AllAccepted', text: 'All Admin Accepted' },
+        { key: 'Matching', text: 'Your Matching' },
+        { key: 'ApprovedByYou', text: 'Approved by You' },
+        { key: 'RejectedByYou', text: 'Rejected by You' },
+      ].map(tab => (
+        <DefaultButton
+          key={tab.key}
+          text={tab.text}
+          onClick={() => setManagerTab(tab.key as any)}
+          styles={{
+            root: {
+              borderRadius: 0,
+              border: 'none',
+              borderBottom: managerTab === tab.key ? '3px solid #0078d4' : '3px solid transparent',
+              background: 'transparent',
+              fontWeight: managerTab === tab.key ? 600 : 400,
+              color: managerTab === tab.key ? '#0078d4' : '#333',
+              padding: '8px 16px',
+              marginRight: 12,
+            },
+          }}
+        />
+      ))}
+    </Stack>
+  ) : (
+    <Stack horizontal tokens={{ childrenGap: 0 }} wrap={false} styles={{ root: { borderBottom: '2px solid #ddd' } }}>
+      {[
+        {
+          key: 'Pending',
+          text: selectedRole === 'Support_Manager' ? 'Pending Requests' : 'Submitted Tickets',
+        },
+        { key: 'Approved', text: 'Approved' },
+        { key: 'Rejected', text: 'Rejected' },
+      ].map(tab => (
+        <DefaultButton
+          key={tab.key}
+          text={tab.text}
+          onClick={() => setManagerTab(tab.key as any)}
+          styles={{
+            root: {
+              borderRadius: 0,
+              border: 'none',
+              borderBottom: managerTab === tab.key ? '3px solid #0078d4' : '3px solid transparent',
+              background: 'transparent',
+              fontWeight: managerTab === tab.key ? 600 : 400,
+              color: managerTab === tab.key ? '#0078d4' : '#333',
+              padding: '8px 16px',
+              marginRight: 12,
+            },
+          }}
+        />
+      ))}
+    </Stack>
+  )}
         {/* RIGHT: Clear + Add (Add only for Seeker) */}
         <Stack horizontal tokens={{ childrenGap: 10 }} wrap={false}>
           <PrimaryButton
@@ -938,19 +952,18 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
         </Text>
       )}
 
-      {itemsForList.length === 0 && (
-        <Text variant="medium" styles={{ root: { marginTop: 8, fontStyle: 'italic' } }}>
-          No tickets matching.
-        </Text>
-      )}
-
-
-      <DetailsList
-        items={itemsForList}
-        columns={columns}
-        groups={managerGroups}
-        layoutMode={DetailsListLayoutMode.fixedColumns}
-      />
+{itemsForList.length === 0 ? (
+  <Text variant="medium" styles={{ root: { marginTop: 8, fontStyle: 'italic' } }}>
+    Currently there are no tickets.
+  </Text>
+) : (
+  <DetailsList
+    items={itemsForList}
+    columns={columns}
+    groups={managerGroups}
+    layoutMode={DetailsListLayoutMode.fixedColumns}
+  />
+)}
 
       {isRequestorFilterCalloutVisible && requestorFilterAnchor && (
         <Callout

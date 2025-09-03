@@ -5,7 +5,8 @@ import {
   DetailsList, DetailsListLayoutMode, IColumn,
   Stack, Text, IconButton, PrimaryButton,
   Dialog, DialogType, DialogFooter, TextField,
-  Dropdown, Label, DatePicker, DefaultButton, IDropdownOption, Callout, Checkbox
+  Dropdown, Label, DatePicker, DefaultButton,
+  Rating, IDropdownOption, Callout, Checkbox
 } from '@fluentui/react';
 import { IGroup } from '@fluentui/react';
 import { PeoplePicker, IPeoplePickerUserItem } from '@pnp/spfx-controls-react/lib/PeoplePicker';
@@ -31,6 +32,7 @@ const STATUS = {
   ManagerRejected: 'Manager Rejected',
   ProviderAccepted: 'Provider Accepted',
   ProviderRejected: 'Provider Rejected',
+  Completed: 'Completed',
 } as const;
 
 
@@ -77,7 +79,15 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
     | 'Matching'            // Provider new tab
     | 'ApprovedByYou'       // Provider new tab
     | 'RejectedByYou'       // Provider new tab
+    | 'Completed'        // ✅ seeker/manager
+    | 'CompletedByYou'   // ✅ provider
     | null;
+
+  const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
+  const [ratingTicket, setRatingTicket] = useState<any | null>(null);
+  const [seekerRating, setSeekerRating] = useState<number>(0);
+  const [providerRating, setProviderRating] = useState<number>(0);
+
 
   const [managerTab, setManagerTab] = useState<ManagerTab>(null);
 
@@ -92,6 +102,21 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
     setRequestor([]);
     setAssignedTo([]);
     setSelectedTicket(null);
+  };
+
+  const markCompleted = async (ticketId: number) => {
+    try {
+      await sp.web.lists.getByTitle('Tickets').items.getById(ticketId).update({
+        Status: STATUS.Completed,
+      });
+      setActionMessage('Ticket marked as Completed.');
+      await fetchTickets();
+      setTimeout(() => setActionMessage(null), 3000);
+    } catch (e) {
+      console.error('❌ markCompleted error:', e);
+      setActionMessage('Failed to mark ticket as Completed.');
+      setTimeout(() => setActionMessage(null), 3000);
+    }
   };
 
 
@@ -417,6 +442,14 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
           return mine;
         }
 
+        if (managerTab === 'Completed') {
+          return tickets.filter(
+            t =>
+              String(t.Status || '') === STATUS.Completed &&
+              (t.ManagerEmail || '').trim().toLowerCase() === normalizedLogin
+          );
+        }
+
         return result;
       }
 
@@ -440,6 +473,14 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
             t =>
               (t.Status === STATUS.ManagerRejected || t.Status === STATUS.ProviderRejected) &&
               (t.RequestorEmail || '').toLowerCase() === normalizedLogin
+          );
+        }
+
+        if (managerTab === 'Completed') {
+          return tickets.filter(
+            t =>
+              String(t.Status || '') === STATUS.Completed &&
+              (t.RequestorEmail || '').trim().toLowerCase() === normalizedLogin
           );
         }
         return result;
@@ -473,6 +514,12 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
             // Option A: show all Provider Rejected
             return tickets.filter(
               t => String(t.Status ?? '').trim() === STATUS.ProviderRejected
+            );
+          case 'CompletedByYou': // ✅ new case
+            return tickets.filter(
+              t =>
+                String(t.Status ?? '').trim() === STATUS.Completed &&
+                (t.AssignedToEmail || '').trim().toLowerCase() === me
             );
           default:
             return tickets;
@@ -737,6 +784,18 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
             )
           }
 
+          {/* ✅ Support_Provider: Mark Completed for your accepted tickets */}
+          {selectedRole === 'Support_Provider' &&
+            item.Status === STATUS.ProviderAccepted &&
+            (item.AssignedToEmail || '').trim().toLowerCase() === (loginEmail || '').trim().toLowerCase() && (
+              <PrimaryButton
+                text="Make Completed"
+                onClick={() => markCompleted(item.Id)}
+                styles={{ root: { backgroundColor: '#107c10', color: 'white', padding: '0 8px', minWidth: 140 } }}
+              />
+            )
+          }
+
           {/* Everyone else (NOT Support_Provider): Edit/Delete as before */}
           {selectedRole !== 'Support_Provider' && (
             <>
@@ -754,6 +813,50 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
                 onClick={() => { setTicketToDelete(item); setDeleteConfirmOpen(true); }}
               />
             </>
+          )}
+
+          {/* ✅ Manager: Rate Users when Completed */}
+          {selectedRole === 'Support_Manager' && item.Status === STATUS.Completed && (
+            <PrimaryButton
+              text="Rate Users"
+         onClick={async () => {
+  setRatingTicket(item);
+
+  // 🔹 default values
+  let seekerVal = 0;
+  let providerVal = 0;
+
+  try {
+    if (item.RequestorEmail) {
+      const seekerItems = await sp.web.lists
+        .getByTitle('All_Users')
+        .items.filter(`Email eq '${item.RequestorEmail}'`)
+        .top(1)();
+      if (seekerItems.length > 0) {
+        seekerVal = seekerItems[0].Seeker_Rating || 0;
+      }
+    }
+
+    if (item.AssignedToEmail) {
+      const providerItems = await sp.web.lists
+        .getByTitle('All_Users')
+        .items.filter(`Email eq '${item.AssignedToEmail}'`)
+        .top(1)();
+      if (providerItems.length > 0) {
+        providerVal = providerItems[0].Provider_Rating || 0;
+      }
+    }
+  } catch (e) {
+    console.error("❌ Error fetching existing ratings:", e);
+  }
+
+  // ✅ preload state
+  setSeekerRating(seekerVal);
+  setProviderRating(providerVal);
+  setIsRatingDialogOpen(true);
+}}
+
+            />
           )}
 
           {/* Delete confirmation dialog stays here */}
@@ -858,91 +961,91 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
     return ordered;
   }, [filteredTickets, managerGroups]);
 
-
   return (
-    <Stack tokens={{ childrenGap: 15 }}>
-
-<Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }} wrap={false}>
-  {/* LEFT: Role-based Tabs */}
-  {selectedRole === 'Support_Provider' ? (
-    <Stack horizontal tokens={{ childrenGap: 0 }} wrap={false} styles={{ root: { borderBottom: '2px solid #ddd' } }}>
-      {[
-        { key: 'AllAccepted', text: 'All Admin Accepted' },
-        { key: 'Matching', text: 'Your Matching' },
-        { key: 'ApprovedByYou', text: 'Approved by You' },
-        { key: 'RejectedByYou', text: 'Rejected by You' },
-      ].map(tab => (
-        <DefaultButton
-          key={tab.key}
-          text={tab.text}
-          onClick={() => setManagerTab(tab.key as any)}
-          styles={{
-            root: {
-              borderRadius: 0,
-              border: 'none',
-              borderBottom: managerTab === tab.key ? '3px solid #0078d4' : '3px solid transparent',
-              background: 'transparent',
-              fontWeight: managerTab === tab.key ? 600 : 400,
-              color: managerTab === tab.key ? '#0078d4' : '#333',
-              padding: '8px 16px',
-              marginRight: 12,
+    <Stack tokens={{ childrenGap: 10 }}>
+      {/* TOP ROW: Tabs */}
+      <Stack
+        horizontal
+        tokens={{ childrenGap: 0 }}
+        wrap={false}
+        styles={{ root: { borderBottom: '2px solid #ddd' } }}
+      >
+        {(selectedRole === 'Support_Provider'
+          ? [
+            { key: 'AllAccepted', text: 'All Admin Accepted' },
+            { key: 'Matching', text: 'Your Matching' },
+            { key: 'ApprovedByYou', text: 'Approved by You' },
+            { key: 'RejectedByYou', text: 'Rejected by You' },
+            { key: 'CompletedByYou', text: 'Completed' },
+          ]
+          : [
+            {
+              key: 'Pending',
+              text:
+                selectedRole === 'Support_Manager'
+                  ? 'Pending Requests'
+                  : 'Submitted Tickets',
             },
-          }}
-        />
-      ))}
-    </Stack>
-  ) : (
-    <Stack horizontal tokens={{ childrenGap: 0 }} wrap={false} styles={{ root: { borderBottom: '2px solid #ddd' } }}>
-      {[
-        {
-          key: 'Pending',
-          text: selectedRole === 'Support_Manager' ? 'Pending Requests' : 'Submitted Tickets',
-        },
-        { key: 'Approved', text: 'Approved' },
-        { key: 'Rejected', text: 'Rejected' },
-      ].map(tab => (
-        <DefaultButton
-          key={tab.key}
-          text={tab.text}
-          onClick={() => setManagerTab(tab.key as any)}
-          styles={{
-            root: {
-              borderRadius: 0,
-              border: 'none',
-              borderBottom: managerTab === tab.key ? '3px solid #0078d4' : '3px solid transparent',
-              background: 'transparent',
-              fontWeight: managerTab === tab.key ? 600 : 400,
-              color: managerTab === tab.key ? '#0078d4' : '#333',
-              padding: '8px 16px',
-              marginRight: 12,
-            },
-          }}
-        />
-      ))}
-    </Stack>
-  )}
-        {/* RIGHT: Clear + Add (Add only for Seeker) */}
-        <Stack horizontal tokens={{ childrenGap: 10 }} wrap={false}>
-          <PrimaryButton
-            text="Clear Filters"
-            onClick={() => {
-              setSelectedRequestors(requestorFilterOptions.map(opt => opt.key as string));
-              setSelectedAssignedTo(assignedToFilterOptions.map(opt => opt.key as string));
-              setSelectedManagers(managerFilterOptions.map(opt => opt.key as string));
-              setSelectedStatuses(statusFilterOptions.map(opt => opt.key as string));
-              setManagerTab(selectedRole === 'Support_Provider' ? 'AllAccepted' : 'Pending');
-              setIsRequestorFilterCalloutVisible(false);
-              setIsAssignedToCalloutVisible(false);
-              setIsManagerCalloutVisible(false);
-              setIsStatusCalloutVisible(false);
+            { key: 'Approved', text: 'Approved' },
+            { key: 'Rejected', text: 'Rejected' },
+            { key: 'Completed', text: 'Completed' },
+          ]
+        ).map(tab => (
+          <DefaultButton
+            key={tab.key}
+            text={tab.text}
+            onClick={() => setManagerTab(tab.key as any)}
+            styles={{
+              root: {
+                borderRadius: 0,
+                border: 'none',
+                borderBottom:
+                  managerTab === tab.key
+                    ? '3px solid #0078d4'
+                    : '3px solid transparent',
+                background: 'transparent',
+                fontWeight: managerTab === tab.key ? 600 : 400,
+                color: managerTab === tab.key ? '#0078d4' : '#333',
+                padding: '8px 16px',
+                marginRight: 12,
+              },
+              rootHovered: {
+                background: '#f3f2f1',
+                color: '#0078d4',
+              },
             }}
-            styles={{ root: { backgroundColor: '#d83b01', color: 'white', padding: '0 12px', minWidth: 120 } }}
           />
+        ))}
+      </Stack>
 
-          {selectedRole === 'Support_Seeker' && (
-            <PrimaryButton text="+ Add Ticket" onClick={openAddDialog} />
-          )}
-        </Stack>
+      {/* BOTTOM ROW: Buttons */}
+      <Stack horizontal horizontalAlign="end" tokens={{ childrenGap: 10 }}>
+        <PrimaryButton
+          text="Clear Filters"
+          onClick={() => {
+            setSelectedRequestors(requestorFilterOptions.map(opt => opt.key as string));
+            setSelectedAssignedTo(assignedToFilterOptions.map(opt => opt.key as string));
+            setSelectedManagers(managerFilterOptions.map(opt => opt.key as string));
+            setSelectedStatuses(statusFilterOptions.map(opt => opt.key as string));
+            setManagerTab(selectedRole === 'Support_Provider' ? 'AllAccepted' : 'Pending');
+            setIsRequestorFilterCalloutVisible(false);
+            setIsAssignedToCalloutVisible(false);
+            setIsManagerCalloutVisible(false);
+            setIsStatusCalloutVisible(false);
+          }}
+          styles={{
+            root: {
+              backgroundColor: '#d83b01',
+              color: 'white',
+              padding: '0 12px',
+              minWidth: 120,
+            },
+          }}
+        />
+
+        {selectedRole === 'Support_Seeker' && (
+          <PrimaryButton text="+ Add Ticket" onClick={openAddDialog} />
+        )}
       </Stack>
 
       {/* ✅ Success message appears here */}
@@ -952,166 +1055,176 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
         </Text>
       )}
 
-{itemsForList.length === 0 ? (
-  <Text variant="medium" styles={{ root: { marginTop: 8, fontStyle: 'italic' } }}>
-    Currently there are no tickets.
-  </Text>
-) : (
-  <DetailsList
-    items={itemsForList}
-    columns={columns}
-    groups={managerGroups}
-    layoutMode={DetailsListLayoutMode.fixedColumns}
-  />
-)}
+      {
+        itemsForList.length === 0 ? (
+          <Text variant="medium" styles={{ root: { marginTop: 8, fontStyle: 'italic' } }}>
+            Currently there are no tickets.
+          </Text>
+        ) : (
+          <DetailsList
+            items={itemsForList}
+            columns={columns}
+            groups={managerGroups}
+            layoutMode={DetailsListLayoutMode.fixedColumns}
+          />
+        )
+      }
 
-      {isRequestorFilterCalloutVisible && requestorFilterAnchor && (
-        <Callout
-          target={requestorFilterAnchor}
-          onDismiss={() => setIsRequestorFilterCalloutVisible(false)}
-          setInitialFocus
-          directionalHint={8}
-          isBeakVisible={true}
-          gapSpace={5}
-        >
-          <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 10 } }}>
-            <Text variant="mediumPlus">Filter by Requestor</Text>
-            <Checkbox
-              label="All"
-              checked={selectedRequestors.length === requestorFilterOptions.length}
-              onChange={() => {
-                const all = requestorFilterOptions.map(opt => opt.key as string);
-                const isAllSelected = selectedRequestors.length === all.length;
-                setSelectedRequestors(isAllSelected ? [] : all);
-              }}
-            />
-            {requestorFilterOptions.map(opt => (
+      {
+        isRequestorFilterCalloutVisible && requestorFilterAnchor && (
+          <Callout
+            target={requestorFilterAnchor}
+            onDismiss={() => setIsRequestorFilterCalloutVisible(false)}
+            setInitialFocus
+            directionalHint={8}
+            isBeakVisible={true}
+            gapSpace={5}
+          >
+            <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 10 } }}>
+              <Text variant="mediumPlus">Filter by Requestor</Text>
               <Checkbox
-                key={opt.key}
-                label={opt.text}
-                checked={selectedRequestors.includes(opt.key as string)}
+                label="All"
+                checked={selectedRequestors.length === requestorFilterOptions.length}
                 onChange={() => {
-                  const key = opt.key as string;
-                  setSelectedRequestors(prev =>
-                    prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-                  );
+                  const all = requestorFilterOptions.map(opt => opt.key as string);
+                  const isAllSelected = selectedRequestors.length === all.length;
+                  setSelectedRequestors(isAllSelected ? [] : all);
                 }}
               />
-            ))}
-          </Stack>
-        </Callout>
-      )}
+              {requestorFilterOptions.map(opt => (
+                <Checkbox
+                  key={opt.key}
+                  label={opt.text}
+                  checked={selectedRequestors.includes(opt.key as string)}
+                  onChange={() => {
+                    const key = opt.key as string;
+                    setSelectedRequestors(prev =>
+                      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+                    );
+                  }}
+                />
+              ))}
+            </Stack>
+          </Callout>
+        )
+      }
 
-      {isAssignedToCalloutVisible && assignedToFilterAnchor && (
-        <Callout
-          target={assignedToFilterAnchor}
-          onDismiss={() => setIsAssignedToCalloutVisible(false)}
-          setInitialFocus
-          directionalHint={8}
-          isBeakVisible={true}
-          gapSpace={5}
-        >
-          <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 10 } }}>
-            <Text variant="mediumPlus">Filter by Assigned To</Text>
-            <Checkbox
-              label="All"
-              checked={selectedAssignedTo.length === assignedToFilterOptions.length}
-              onChange={() => {
-                const all = assignedToFilterOptions.map(opt => opt.key as string);
-                const isAllSelected = selectedAssignedTo.length === all.length;
-                setSelectedAssignedTo(isAllSelected ? [] : all);
-              }}
-            />
-            {assignedToFilterOptions.map(opt => (
+      {
+        isAssignedToCalloutVisible && assignedToFilterAnchor && (
+          <Callout
+            target={assignedToFilterAnchor}
+            onDismiss={() => setIsAssignedToCalloutVisible(false)}
+            setInitialFocus
+            directionalHint={8}
+            isBeakVisible={true}
+            gapSpace={5}
+          >
+            <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 10 } }}>
+              <Text variant="mediumPlus">Filter by Assigned To</Text>
               <Checkbox
-                key={opt.key}
-                label={opt.text}
-                checked={selectedAssignedTo.includes(opt.key as string)}
+                label="All"
+                checked={selectedAssignedTo.length === assignedToFilterOptions.length}
                 onChange={() => {
-                  const key = opt.key as string;
-                  setSelectedAssignedTo(prev =>
-                    prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-                  );
+                  const all = assignedToFilterOptions.map(opt => opt.key as string);
+                  const isAllSelected = selectedAssignedTo.length === all.length;
+                  setSelectedAssignedTo(isAllSelected ? [] : all);
                 }}
               />
-            ))}
-          </Stack>
-        </Callout>
-      )}
+              {assignedToFilterOptions.map(opt => (
+                <Checkbox
+                  key={opt.key}
+                  label={opt.text}
+                  checked={selectedAssignedTo.includes(opt.key as string)}
+                  onChange={() => {
+                    const key = opt.key as string;
+                    setSelectedAssignedTo(prev =>
+                      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+                    );
+                  }}
+                />
+              ))}
+            </Stack>
+          </Callout>
+        )
+      }
 
-      {isManagerCalloutVisible && managerFilterAnchor && (
-        <Callout
-          target={managerFilterAnchor}
-          onDismiss={() => setIsManagerCalloutVisible(false)}
-          setInitialFocus
-          directionalHint={8}
-          isBeakVisible={true}
-          gapSpace={5}
-        >
-          <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 10 } }}>
-            <Text variant="mediumPlus">Filter by Manager</Text>
-            <Checkbox
-              label="All"
-              checked={selectedManagers.length === managerFilterOptions.length}
-              onChange={() => {
-                const all = managerFilterOptions.map(opt => opt.key as string);
-                const isAllSelected = selectedManagers.length === all.length;
-                setSelectedManagers(isAllSelected ? [] : all);
-              }}
-            />
-            {managerFilterOptions.map(opt => (
+      {
+        isManagerCalloutVisible && managerFilterAnchor && (
+          <Callout
+            target={managerFilterAnchor}
+            onDismiss={() => setIsManagerCalloutVisible(false)}
+            setInitialFocus
+            directionalHint={8}
+            isBeakVisible={true}
+            gapSpace={5}
+          >
+            <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 10 } }}>
+              <Text variant="mediumPlus">Filter by Manager</Text>
               <Checkbox
-                key={opt.key}
-                label={opt.text}
-                checked={selectedManagers.includes(opt.key as string)}
+                label="All"
+                checked={selectedManagers.length === managerFilterOptions.length}
                 onChange={() => {
-                  const key = opt.key as string;
-                  setSelectedManagers(prev =>
-                    prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-                  );
+                  const all = managerFilterOptions.map(opt => opt.key as string);
+                  const isAllSelected = selectedManagers.length === all.length;
+                  setSelectedManagers(isAllSelected ? [] : all);
                 }}
               />
-            ))}
-          </Stack>
-        </Callout>
-      )}
+              {managerFilterOptions.map(opt => (
+                <Checkbox
+                  key={opt.key}
+                  label={opt.text}
+                  checked={selectedManagers.includes(opt.key as string)}
+                  onChange={() => {
+                    const key = opt.key as string;
+                    setSelectedManagers(prev =>
+                      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+                    );
+                  }}
+                />
+              ))}
+            </Stack>
+          </Callout>
+        )
+      }
 
-      {isStatusCalloutVisible && statusFilterAnchor && (
-        <Callout
-          target={statusFilterAnchor}
-          onDismiss={() => setIsStatusCalloutVisible(false)}
-          setInitialFocus
-          directionalHint={8}
-          isBeakVisible={true}
-          gapSpace={5}
-        >
-          <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 10 } }}>
-            <Text variant="mediumPlus">Filter by Status</Text>
-            <Checkbox
-              label="All"
-              checked={selectedStatuses.length === statusFilterOptions.length}
-              onChange={() => {
-                const all = statusFilterOptions.map(opt => opt.key as string);
-                const isAllSelected = selectedStatuses.length === all.length;
-                setSelectedStatuses(isAllSelected ? [] : all);
-              }}
-            />
-            {statusFilterOptions.map(opt => (
+      {
+        isStatusCalloutVisible && statusFilterAnchor && (
+          <Callout
+            target={statusFilterAnchor}
+            onDismiss={() => setIsStatusCalloutVisible(false)}
+            setInitialFocus
+            directionalHint={8}
+            isBeakVisible={true}
+            gapSpace={5}
+          >
+            <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 10 } }}>
+              <Text variant="mediumPlus">Filter by Status</Text>
               <Checkbox
-                key={opt.key}
-                label={opt.text}
-                checked={selectedStatuses.includes(opt.key as string)}
+                label="All"
+                checked={selectedStatuses.length === statusFilterOptions.length}
                 onChange={() => {
-                  const key = opt.key as string;
-                  setSelectedStatuses(prev =>
-                    prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-                  );
+                  const all = statusFilterOptions.map(opt => opt.key as string);
+                  const isAllSelected = selectedStatuses.length === all.length;
+                  setSelectedStatuses(isAllSelected ? [] : all);
                 }}
               />
-            ))}
-          </Stack>
-        </Callout>
-      )}
+              {statusFilterOptions.map(opt => (
+                <Checkbox
+                  key={opt.key}
+                  label={opt.text}
+                  checked={selectedStatuses.includes(opt.key as string)}
+                  onChange={() => {
+                    const key = opt.key as string;
+                    setSelectedStatuses(prev =>
+                      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+                    );
+                  }}
+                />
+              ))}
+            </Stack>
+          </Callout>
+        )
+      }
 
       <Dialog hidden={!isDialogOpen} onDismiss={closeDialog} dialogContentProps={{
         type: DialogType.largeHeader,
@@ -1220,11 +1333,89 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
             </>
           )}
         </Stack>
+
         <DialogFooter>
           <PrimaryButton text="Close" onClick={() => setIsViewDialogOpen(false)} />
         </DialogFooter>
       </Dialog>
-    </Stack>
+
+      <Dialog
+        hidden={!isRatingDialogOpen}
+        onDismiss={() => setIsRatingDialogOpen(false)}
+        dialogContentProps={{
+          type: DialogType.largeHeader,
+          title: 'Rate Users'
+        }}
+      >
+        <Stack tokens={{ childrenGap: 15 }}>
+          <Stack>
+            <Text variant="mediumPlus">Seeker: {ratingTicket?.Requestor}</Text>
+            <Rating
+              max={5}
+              rating={seekerRating}
+              onChange={(_, val) => setSeekerRating(val || 0)}
+            />
+          </Stack>
+
+          <Stack>
+            <Text variant="mediumPlus">Provider: {ratingTicket?.AssignedTo}</Text>
+            <Rating
+              max={5}
+              rating={providerRating}
+              onChange={(_, val) => setProviderRating(val || 0)}
+            />
+          </Stack>
+        </Stack>
+
+        <DialogFooter>
+          <PrimaryButton
+            text="Save Ratings"
+            onClick={async () => {
+              try {
+                if (!ratingTicket) return;
+
+                // ✅ Update seeker rating
+                if (ratingTicket.RequestorEmail) {
+                  const seekerItems = await sp.web.lists
+                    .getByTitle('All_Users')
+                    .items.filter(`Email eq '${ratingTicket.RequestorEmail}'`)
+                    .top(1)();
+                  if (seekerItems.length > 0) {
+                    await sp.web.lists.getByTitle('All_Users')
+                      .items.getById(seekerItems[0].Id)
+                      .update({ Seeker_Rating: seekerRating });
+                  }
+                }
+
+                // ✅ Update provider rating
+                if (ratingTicket.AssignedToEmail) {
+                  const providerItems = await sp.web.lists
+                    .getByTitle('All_Users')
+                    .items.filter(`Email eq '${ratingTicket.AssignedToEmail}'`)
+                    .top(1)();
+                  if (providerItems.length > 0) {
+                    await sp.web.lists.getByTitle('All_Users')
+                      .items.getById(providerItems[0].Id)
+                      .update({ Provider_Rating: providerRating });
+                  }
+                }
+
+                setActionMessage('Ratings saved successfully.');
+                setTimeout(() => setActionMessage(null), 3000);
+              } catch (e) {
+                console.error('❌ Save Ratings error:', e);
+                setActionMessage('Failed to save ratings.');
+                setTimeout(() => setActionMessage(null), 3000);
+              }
+
+              setIsRatingDialogOpen(false);
+            }}
+          />
+          <DefaultButton text="Cancel" onClick={() => setIsRatingDialogOpen(false)} />
+        </DialogFooter>
+      </Dialog>
+
+    </Stack >
   );
 };
 

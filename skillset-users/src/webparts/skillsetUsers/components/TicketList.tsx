@@ -6,12 +6,14 @@ import {
   Stack, Text, IconButton, PrimaryButton,
   Dialog, DialogType, DialogFooter, TextField,
   Dropdown, Label, DatePicker, DefaultButton,
-  Rating, IDropdownOption, Callout, Checkbox
+  IDropdownOption, Callout, Checkbox, SelectionMode
 } from '@fluentui/react';
 import { IGroup } from '@fluentui/react';
 import { PeoplePicker, IPeoplePickerUserItem } from '@pnp/spfx-controls-react/lib/PeoplePicker';
 import { SPHttpClient, MSGraphClientFactory } from '@microsoft/sp-http';
 import { IDetailsColumnProps } from '@fluentui/react/lib/DetailsList'
+import CompletedTickets from './CompletedTickets';
+
 interface ITicketListProps {
   welcomeName: string;
   selectedRole: string;
@@ -24,6 +26,16 @@ interface ITicketListProps {
   onEditClick: () => void;
   onTestClick: () => void;
   onLogout: () => void;
+
+  // existing optional props
+  onRateUser?: (ticket: any) => void;
+  ratingsCache?: Record<number, { rating: number; comment?: string }>;
+
+  // 🔹 add these four new props
+  ratingTicket?: any | null;
+  setRatingTicket?: (t: any | null) => void;
+  isRatingDialogOpen?: boolean;
+  setIsRatingDialogOpen?: (v: boolean) => void;
 }
 
 const STATUS = {
@@ -36,7 +48,7 @@ const STATUS = {
 } as const;
 
 
-const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, loginEmail, context, onEditClick, onTestClick, onLogout }) => {
+const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, loginEmail, context, onEditClick, onTestClick, onLogout, onRateUser, ratingsCache, ratingTicket, setRatingTicket, isRatingDialogOpen, setIsRatingDialogOpen }) => {
   const [tickets, setTickets] = useState<any[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -53,7 +65,6 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
   const [ticketToDelete, setTicketToDelete] = useState<any | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [requestorFilterOptions, setRequestorFilterOptions] = useState<IDropdownOption[]>([]);
-
   const [isRequestorFilterCalloutVisible, setIsRequestorFilterCalloutVisible] = useState(false);
   const [requestorFilterAnchor, setRequestorFilterAnchor] = useState<HTMLElement | null>(null);
   const [selectedRequestors, setSelectedRequestors] = useState<string[]>([]);
@@ -61,16 +72,24 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
   const [assignedToFilterOptions, setAssignedToFilterOptions] = useState<IDropdownOption[]>([]);
   const [isAssignedToCalloutVisible, setIsAssignedToCalloutVisible] = useState(false);
   const [assignedToFilterAnchor, setAssignedToFilterAnchor] = useState<HTMLElement | null>(null);
-
   const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
   const [managerFilterOptions, setManagerFilterOptions] = useState<IDropdownOption[]>([]);
   const [isManagerCalloutVisible, setIsManagerCalloutVisible] = useState(false);
   const [managerFilterAnchor, setManagerFilterAnchor] = useState<HTMLElement | null>(null);
-
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [statusFilterOptions, setStatusFilterOptions] = useState<IDropdownOption[]>([]);
   const [isStatusCalloutVisible, setIsStatusCalloutVisible] = useState(false);
   const [statusFilterAnchor, setStatusFilterAnchor] = useState<HTMLElement | null>(null);
+  // which provider (email) is being inspected in the rating dialog; null => show provider list
+  const [selectedProviderEmailForDialog, setSelectedProviderEmailForDialog] = useState<string | null>(null);
+
+  const [providerAggregates, setProviderAggregates] = useState<Record<string, {
+    total: number;
+    count: number;
+    avg: number;
+  }>>({});
+
+
   type ManagerTab =
     | 'Pending'             // Seeker/Manager old tab
     | 'Approved'            // Seeker/Manager old tab
@@ -83,15 +102,35 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
     | 'CompletedByYou'   // ✅ provider
     | null;
 
-  const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
-  const [ratingTicket, setRatingTicket] = useState<any | null>(null);
-  const [seekerRating, setSeekerRating] = useState<number>(0);
-  const [providerRating, setProviderRating] = useState<number>(0);
-
-
   const [managerTab, setManagerTab] = useState<ManagerTab>(null);
 
   const [providerSkillIds, setProviderSkillIds] = useState<number[]>([]);
+
+  // providers to show in the Rate Users dialog: providers who worked on Completed tickets
+  // where current user is the Manager, plus any providers with existing aggregates.
+  const providerListForDialog = React.useMemo(() => {
+    const me = (loginEmail || '').trim().toLowerCase();
+    const setEmails = new Set<string>();
+
+    (tickets || []).forEach((t: any) => {
+      const status = String(t.Status || '').trim();
+      const manager = (t.ManagerEmail || '').trim().toLowerCase();
+      const assigned = (t.AssignedToEmail || '').trim().toLowerCase();
+
+      // include providers of completed tickets where I'm the manager
+      if (status === STATUS.Completed && manager === me && assigned) {
+        setEmails.add(assigned);
+      }
+    });
+
+    // Also include any providers that already have aggregates (so rated providers show up)
+    Object.keys(providerAggregates || {}).forEach(k => {
+      if (k) setEmails.add(k);
+    });
+
+    return Array.from(setEmails);
+  }, [tickets, providerAggregates, loginEmail]);
+
 
   const closeDialog = () => {
     setIsDialogOpen(false);
@@ -183,10 +222,10 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
     />
   );
 
+
+
   const hasSkillOverlap = (t: any, providerSkillIds: number[]) =>
     Array.isArray(t.SkillsetId) && t.SkillsetId.some((id: number) => providerSkillIds.includes(id));
-
-
 
   const fetchTickets = async () => {
     try {
@@ -196,7 +235,8 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
           'Id', 'Title', 'Description', 'Status', 'AssignedOn', 'SkillsetId',
           'Requestor/Title', 'Requestor/EMail',
           'AssignedTo/Title', 'AssignedTo/EMail',
-          'Manager/Title', 'Manager/EMail'
+          'Manager/Title', 'Manager/EMail',
+          'Provider_Rating', 'Comments'
         )
         .expand('Requestor', 'AssignedTo', 'Manager')
         .get();
@@ -231,7 +271,9 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
           AssignedTo: item.AssignedTo?.Title || '',
           AssignedToEmail: item.AssignedTo?.EMail || item.AssignedTo?.UserPrincipalName || '',
           Manager: item.Manager?.Title || '',
-          ManagerEmail: item.Manager?.EMail || item.Manager?.UserPrincipalName || ''
+          ManagerEmail: item.Manager?.EMail || item.Manager?.UserPrincipalName || '',
+          Provider_Rating: (item as any).Provider_Rating ?? (item as any).Provider_x005f_Rating ?? 0,
+          Comments: (item as any).Comments ?? (item as any).Comments0 ?? ''
         };
       });
 
@@ -253,6 +295,11 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
       console.groupEnd();
 
       setTickets(enriched);
+
+      // after setTickets(enriched)
+      const aggs = computeProviderAggregatesFromTickets(enriched);
+      setProviderAggregates(aggs);
+
 
       const uniqueRequestors = Array.from(new Set(enriched.map(t => t.Requestor).filter(Boolean)));
       const requestorOptions = uniqueRequestors.map(name => ({ key: name, text: name }));
@@ -278,7 +325,80 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
     }
   };
 
-  //end of part 1
+  const computeProviderAggregatesFromTickets = (ticketArray: any[]) => {
+    const map: Record<string, { total: number; count: number; avg: number }> = {};
+    ticketArray.forEach(t => {
+      const email = (t?.AssignedToEmail || '').trim().toLowerCase();
+      const r = Number((t?.Provider_Rating ?? 0)) || 0;
+      if (!email || r <= 0) return;
+      if (!map[email]) map[email] = { total: 0, count: 0, avg: 0 };
+      map[email].total += r;
+      map[email].count += 1;
+    });
+
+    Object.keys(map).forEach(k => {
+      const e = map[k];
+      e.avg = e.count ? Number((e.total / e.count).toFixed(2)) : 0;
+    });
+
+    return map;
+  };
+
+  // persist a single provider's aggregates into All_Users
+  const persistProviderAggregate = async (providerEmail?: string) => {
+    try {
+      if (!providerEmail) return;
+      const normalized = providerEmail.trim();
+      if (!normalized) return;
+
+      // escape single quotes for OData filter safety
+      const esc = normalized.replace(/'/g, "''");
+
+      // Query Tickets list for ratings for that provider (server-side truth)
+      const items = await sp.web.lists.getByTitle('Tickets').items
+        .select('Provider_Rating', 'AssignedTo/EMail')
+        .expand('AssignedTo')
+        .filter(`AssignedTo/EMail eq '${esc}' and Provider_Rating ne null`)
+        .get();
+
+      const ratings = items
+        .map((it: any) => Number(it.Provider_Rating) || 0)
+        .filter((v: number) => v > 0);
+
+      const total = ratings.reduce((a: number, b: number) => a + b, 0);
+      const count = ratings.length;
+      const avg = count ? Number((total / count).toFixed(2)) : 0;
+
+      // Update All_Users (assumes list has an Email field)
+      const users = await sp.web.lists.getByTitle('All_Users').items
+        .filter(`Email eq '${esc}'`)
+        .top(1)
+        .get();
+
+      if (users && users.length > 0) {
+        await sp.web.lists.getByTitle('All_Users').items.getById(users[0].Id).update({
+          Provider_TotalRating: total,
+          Provider_Rating_Count: count,
+          Provider_Average: avg
+        });
+      } else {
+        // fallback: create entry so managers can still see values (optional)
+        await sp.web.lists.getByTitle('All_Users').items.add({
+          Title: normalized,
+          Email: normalized,
+          Provider_TotalRating: total,
+          Provider_Rating_Count: count,
+          Provider_Average: avg
+        });
+      }
+
+      // keep UI in-sync quickly
+      setProviderAggregates(prev => ({ ...prev, [normalized.toLowerCase()]: { total, count, avg } }));
+    } catch (err) {
+      console.error('persistProviderAggregate error:', err);
+    }
+  };
+
 
   // Manager can edit only Approved tickets that they manage
   const canManagerEditApproved = React.useMemo(() => {
@@ -815,49 +935,16 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
             </>
           )}
 
-          {/* ✅ Manager: Rate Users when Completed */}
-          {selectedRole === 'Support_Manager' && item.Status === STATUS.Completed && (
-            <PrimaryButton
-              text="Rate Users"
-         onClick={async () => {
-  setRatingTicket(item);
-
-  // 🔹 default values
-  let seekerVal = 0;
-  let providerVal = 0;
-
-  try {
-    if (item.RequestorEmail) {
-      const seekerItems = await sp.web.lists
-        .getByTitle('All_Users')
-        .items.filter(`Email eq '${item.RequestorEmail}'`)
-        .top(1)();
-      if (seekerItems.length > 0) {
-        seekerVal = seekerItems[0].Seeker_Rating || 0;
-      }
-    }
-
-    if (item.AssignedToEmail) {
-      const providerItems = await sp.web.lists
-        .getByTitle('All_Users')
-        .items.filter(`Email eq '${item.AssignedToEmail}'`)
-        .top(1)();
-      if (providerItems.length > 0) {
-        providerVal = providerItems[0].Provider_Rating || 0;
-      }
-    }
-  } catch (e) {
-    console.error("❌ Error fetching existing ratings:", e);
-  }
-
-  // ✅ preload state
-  setSeekerRating(seekerVal);
-  setProviderRating(providerVal);
-  setIsRatingDialogOpen(true);
-}}
-
-            />
-          )}
+          {/* optionally render small rating summary from ratingsCache */}
+          {(() => {
+            const id = item.ID ?? item.Id;
+            const entry = ratingsCache?.[id];
+            if (entry) {
+              const stars = '★'.repeat(Math.max(0, Math.min(5, entry.rating)));
+              return <span style={{ marginLeft: 6 }}>{stars}{entry.rating ? ` (${entry.rating})` : ''}</span>;
+            }
+            return null;
+          })()}
 
           {/* Delete confirmation dialog stays here */}
           <Dialog
@@ -877,7 +964,6 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
         </Stack>
       )
     }
-
 
   ];
 
@@ -915,6 +1001,7 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
       setTimeout(() => setActionMessage(null), 3000);
     }
   };
+
 
 
   const handleApproval = async (ticketId: number, decision: 'Approved' | 'Rejected') => {
@@ -1066,9 +1153,16 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
             columns={columns}
             groups={managerGroups}
             layoutMode={DetailsListLayoutMode.fixedColumns}
+            selectionMode={SelectionMode.single}
+            onItemInvoked={(item) => {
+              // clicking a row selects it; also open view
+              setSelectedTicket(item);
+              openViewDialog(item);
+            }}
           />
         )
       }
+
 
       {
         isRequestorFilterCalloutVisible && requestorFilterAnchor && (
@@ -1341,79 +1435,178 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
 
       <Dialog
         hidden={!isRatingDialogOpen}
-        onDismiss={() => setIsRatingDialogOpen(false)}
+        onDismiss={() => setIsRatingDialogOpen?.(false)}
         dialogContentProps={{
           type: DialogType.largeHeader,
-          title: 'Rate Users'
+          // change the title depending on mode:
+          title: ratingTicket ? 'Rate User' : 'Rate Users'
+        }}
+        modalProps={{
+          isBlocking: false,
+          styles: {
+            main: {
+              maxWidth: "900px !important",
+              width: "900px !important",
+              overflow: "visible"
+            }
+          }
         }}
       >
-        <Stack tokens={{ childrenGap: 15 }}>
-          <Stack>
-            <Text variant="mediumPlus">Seeker: {ratingTicket?.Requestor}</Text>
-            <Rating
-              max={5}
-              rating={seekerRating}
-              onChange={(_, val) => setSeekerRating(val || 0)}
-            />
-          </Stack>
+        <div style={{ padding: 4 }}>
+          {ratingTicket ? (
+            <>
+              <Text>Ticket: {ratingTicket?.Title ?? '—'}</Text>
+            </>
+          ) : (
+            <>
+              {/* Provider aggregates list OR provider-specific CompletedTickets */}
+              {!selectedProviderEmailForDialog ? (
+                <Stack tokens={{ childrenGap: 12 }}>
+                  <Text variant="large">Provider Ratings</Text>
+                  <Text variant="small">Click a provider to view their completed tickets and rate them.</Text>
 
-          <Stack>
-            <Text variant="mediumPlus">Provider: {ratingTicket?.AssignedTo}</Text>
-            <Rating
-              max={5}
-              rating={providerRating}
-              onChange={(_, val) => setProviderRating(val || 0)}
-            />
-          </Stack>
-        </Stack>
+                  {providerListForDialog.length === 0 ? (
+                    <Text>No provider aggregates yet.</Text>
+                  ) : (
+                    <Stack tokens={{ childrenGap: 8 }}>
+                      {providerListForDialog.map((email) => {
+                        const agg = providerAggregates[email] || { total: 0, count: 0, avg: 0 };
 
+                        // find display name from any ticket that matches the provider email
+                        const ticket = tickets.find(
+                          (t: any) => (t.AssignedToEmail || '').trim().toLowerCase() === email
+                        );
+                        const displayName = (ticket && (ticket.AssignedTo || ticket.AssignedToEmail)) || email;
+
+                        const starCount = Math.max(0, Math.min(5, Math.round(agg.avg || 0)));
+                        const stars = '★'.repeat(starCount) + '☆'.repeat(5 - starCount);
+
+                        return (
+                          <Stack
+                            key={email}
+                            horizontal
+                            verticalAlign="center"
+                            tokens={{ childrenGap: 12 }}
+                            styles={{ root: { padding: '8px 6px', borderBottom: '1px solid #eee' } }}
+                          >
+                            <Stack.Item grow>
+                              <Text><strong>{displayName}</strong></Text>
+                              <div style={{ marginTop: 6 }}>
+                                <span style={{ marginRight: 8 }}>{stars}</span>
+                                <span style={{ fontWeight: 600 }}>{agg.avg ?? 0}</span>
+                                <span style={{ marginLeft: 8, color: '#666' }}>({agg.count ?? 0})</span>
+                              </div>
+                            </Stack.Item>
+
+                            <PrimaryButton
+                              text="View Completed"
+                              onClick={() => setSelectedProviderEmailForDialog(email)}
+                            />
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+                  )}
+
+                </Stack>
+              ) : (
+                <Stack tokens={{ childrenGap: 12 }}>
+                  <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
+                    <DefaultButton
+                      text="← Back to Providers"
+                      onClick={() => setSelectedProviderEmailForDialog(null)}
+                    />
+                    <Text variant="large">
+                      Completed Tickets for{' '}
+                      {tickets.find(
+                        t =>
+                          (t.AssignedToEmail || '').trim().toLowerCase() ===
+                          selectedProviderEmailForDialog
+                      )?.AssignedTo || selectedProviderEmailForDialog}
+                    </Text>
+                  </Stack>
+
+<div style={{ marginTop: 8 }}>
+  {/* Header row: left = label/count (CompletedTickets already shows its own count),
+      right = provider aggregate summary */}
+  <Stack horizontal horizontalAlign="space-between" verticalAlign="center" styles={{ root: { marginBottom: 8 } }}>
+    <div>
+      <Text variant="medium">Completed Requests</Text>
+    </div>
+
+    {/* Aggregate summary for the selected provider */}
+    <div aria-hidden style={{ display: 'flex', alignItems: 'center' }}>
+{(() => {
+  const email = (selectedProviderEmailForDialog || '').trim().toLowerCase();
+  const agg = providerAggregates[email] || { total: 0, count: 0, avg: 0 };
+
+  // rounded stars for display
+  const starCount = Math.max(0, Math.min(5, Math.round(agg.avg || 0)));
+  const stars = '★'.repeat(starCount) + '☆'.repeat(5 - starCount);
+
+  return (
+    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+      {/* Average Rating row */}
+      <div style={{ fontSize: 14, lineHeight: '18px', marginBottom: 4 }}>
+        <span style={{ marginRight: 8 }}>{stars}</span>
+        <span style={{ fontWeight: 600 }}>Average Rating: {agg.avg ?? 0}</span>
+      </div>
+      {/* Totals row */}
+      <div style={{ fontSize: 12, color: '#666' }}>
+        <span style={{ marginRight: 12 }}>Total Ratings: {agg.total ?? 0}</span>
+        <span>Num of Reviews: {agg.count ?? 0}</span>
+      </div>
+    </div>
+  );
+})()}
+
+    </div>
+  </Stack>
+
+  {/* The actual completed tickets list (unchanged) */}
+  <CompletedTickets
+    tickets={tickets.filter(t => {
+      const assigned = (t.AssignedToEmail || '').trim().toLowerCase();
+      const manager = (t.ManagerEmail || '').trim().toLowerCase();
+      const status = String(t.Status || '').trim();
+      const providerEmail = (selectedProviderEmailForDialog || '').trim().toLowerCase();
+      const me = (loginEmail || '').trim().toLowerCase();
+
+      // show only completed tickets for this provider where I'm the manager
+      return assigned === providerEmail && manager === me && status === STATUS.Completed;
+    })}
+    onSaveRating={async (ticketId: number, rating: number, comment: string) => {
+      try {
+        await sp.web.lists.getByTitle('Tickets').items.getById(ticketId).update({
+          Provider_Rating: rating,
+          Comments: comment || ''
+        });
+
+        if (selectedProviderEmailForDialog) {
+          await persistProviderAggregate(selectedProviderEmailForDialog);
+        }
+
+        await fetchTickets();
+      } catch (err) {
+        console.error('Error saving rating in provider dialog:', err);
+      }
+    }}
+    currentUserEmail={loginEmail}
+  />
+</div>
+
+                </Stack>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer: close button always present; keep single-ticket Save buttons inside single-ticket UI */}
         <DialogFooter>
-          <PrimaryButton
-            text="Save Ratings"
-            onClick={async () => {
-              try {
-                if (!ratingTicket) return;
-
-                // ✅ Update seeker rating
-                if (ratingTicket.RequestorEmail) {
-                  const seekerItems = await sp.web.lists
-                    .getByTitle('All_Users')
-                    .items.filter(`Email eq '${ratingTicket.RequestorEmail}'`)
-                    .top(1)();
-                  if (seekerItems.length > 0) {
-                    await sp.web.lists.getByTitle('All_Users')
-                      .items.getById(seekerItems[0].Id)
-                      .update({ Seeker_Rating: seekerRating });
-                  }
-                }
-
-                // ✅ Update provider rating
-                if (ratingTicket.AssignedToEmail) {
-                  const providerItems = await sp.web.lists
-                    .getByTitle('All_Users')
-                    .items.filter(`Email eq '${ratingTicket.AssignedToEmail}'`)
-                    .top(1)();
-                  if (providerItems.length > 0) {
-                    await sp.web.lists.getByTitle('All_Users')
-                      .items.getById(providerItems[0].Id)
-                      .update({ Provider_Rating: providerRating });
-                  }
-                }
-
-                setActionMessage('Ratings saved successfully.');
-                setTimeout(() => setActionMessage(null), 3000);
-              } catch (e) {
-                console.error('❌ Save Ratings error:', e);
-                setActionMessage('Failed to save ratings.');
-                setTimeout(() => setActionMessage(null), 3000);
-              }
-
-              setIsRatingDialogOpen(false);
-            }}
-          />
-          <DefaultButton text="Cancel" onClick={() => setIsRatingDialogOpen(false)} />
+          <DefaultButton onClick={() => setIsRatingDialogOpen?.(false)} text="Close" />
         </DialogFooter>
       </Dialog>
+
 
     </Stack >
   );

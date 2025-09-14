@@ -7,8 +7,9 @@ export interface IHeaderLayoutProps {
   onTestClick: () => void;
   onTicketsClick: () => void;
   onLogout: () => void;
+  onRateUsersClick?: (ticket?: any | null) => void; // allow optional ticket param
   userRole?: string[];
-  selectedRole?: string;
+  selectedRole?: string | number; // accept string or numeric key
   onRoleChange?: (role: string) => void;
   children: React.ReactNode;
 }
@@ -19,38 +20,55 @@ const HeaderLayout: React.FC<IHeaderLayoutProps> = ({
   onTestClick,
   onTicketsClick,
   onLogout,
+  onRateUsersClick,
   userRole,
   selectedRole,
   onRoleChange,
   children
 }) => {
   const settingsMenuProps: IContextualMenuProps = {
-    items: [
-      {
-        key: 'userDetails',
-        text: 'User Details',
-        iconProps: { iconName: 'Contact' },
-        onClick: onEditClick
-      },
-      {
-        key: 'skillsetDashboard',
-        text: 'Skillset Dashboard',
-        iconProps: { iconName: 'TestBeaker' },
-        onClick: onTestClick
-      },
-      {
-        key: 'tickets',
-        text: 'Tickets',
-        iconProps: { iconName: 'ReportDocument' },
-        onClick: onTicketsClick
-      },
-      {
+    items: (() => {
+      const base = [
+        {
+          key: 'userDetails',
+          text: 'User Details',
+          iconProps: { iconName: 'Contact' },
+          onClick: onEditClick
+        },
+        {
+          key: 'skillsetDashboard',
+          text: 'Skillset Dashboard',
+          iconProps: { iconName: 'TestBeaker' },
+          onClick: onTestClick
+        },
+        {
+          key: 'tickets',
+          text: 'Tickets',
+          iconProps: { iconName: 'ReportDocument' },
+          onClick: onTicketsClick
+        }
+      ];
+
+      if (String(selectedRole) === 'Support_Manager') {
+        base.push({
+          key: 'rateUsers',
+          text: 'Rate Users',
+          iconProps: { iconName: 'FavoriteStar' },
+          onClick: () => {
+            onRateUsersClick?.(null);
+          }
+        });
+      }
+
+      base.push({
         key: 'logout',
         text: 'Logout',
         iconProps: { iconName: 'SignOut' },
         onClick: onLogout
-      }
-    ]
+      });
+
+      return base;
+    })()
   };
 
   const renderRole = () => {
@@ -62,17 +80,16 @@ const HeaderLayout: React.FC<IHeaderLayoutProps> = ({
     }
     const roleOptions: IDropdownOption[] = userRole.map(role => ({ key: role, text: role }));
     return (
-<Dropdown
-  label=""
-  options={roleOptions}
-  selectedKey={selectedRole}
-  onChange={(e, option) => onRoleChange && onRoleChange(option?.key as string)}
-  styles={{
-    dropdown: { minWidth: 150 },
-    title: { background: 'white', color: '#333' }
-  }}
-/>
-
+      <Dropdown
+        label=""
+        options={roleOptions}
+        selectedKey={selectedRole}
+        onChange={(e, option) => onRoleChange && onRoleChange(String(option?.key))}
+        styles={{
+          dropdown: { minWidth: 150 },
+          title: { background: 'white', color: '#333' }
+        }}
+      />
     );
   };
 

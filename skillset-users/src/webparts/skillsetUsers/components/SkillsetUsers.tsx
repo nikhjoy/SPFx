@@ -1,4 +1,4 @@
-import * as React from 'react'; 
+import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { sp } from '@pnp/sp/presets/all';
 import { IDropdownOption, Stack, Text, PrimaryButton } from '@fluentui/react';
@@ -28,38 +28,75 @@ const SkillsetUsers: React.FC<ISkillsetUsersProps> = (props) => {
   const [roleOptions, setRoleOptions] = useState<IDropdownOption[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
 
-const handleProfileUpdate = async () => {
-  const currentUser = await sp.web.currentUser.get();
-  const userEmail = currentUser.Email;
+  // at top of SkillsetUsers.tsx component
+  const [ratingTicket, setRatingTicket] = React.useState<any | null>(null);
+  const [isRatingDialogOpen, setIsRatingDialogOpen] = React.useState<boolean>(false);
 
-  const users = await sp.web.lists.getByTitle("All_Users").items
-    .filter(`Email eq '${userEmail}'`)
-    .select("Id", "User_Role/Title")
-    .expand("User_Role")
-    .top(1)
-    .get();
 
-  const updatedRoles: string[] = users[0]?.User_Role?.map((r: any) => r.Title) || [];
+  // --- Rate Users dialog state (parent hosts the dialog) ---
+  const [isRateDialogOpen, setIsRateDialogOpen] = useState(false);
+  const [activeTicketToRate, setActiveTicketToRate] = useState<any | null>(null);
+  const [ratingsCache, setRatingsCache] = useState<Record<number, { rating: number; comment?: string }>>({});
 
-  console.log("🔄 Updated roles from SharePoint:", updatedRoles);
+  // open dialog (called by HeaderLayout or TicketList)
 
-  // ✅ Forcefully assign fallback role — skip the includes() check
-  let fallbackRole = '';
+  // save rating — replace simulated persist with real SharePoint save if needed
+  const saveRating = async (ticketId: number, rating: number, comment?: string) => {
+    try {
+      // Example: persist to a Ratings list. Uncomment & adapt as needed.
+      // await sp.web.lists.getByTitle('Ratings').items.add({
+      //   TicketId: ticketId,
+      //   Rating: rating,
+      //   Comment: comment
+      // });
 
-  if (updatedRoles.includes("Support_Seeker")) {
-    fallbackRole = "Support_Seeker";
-  } else if (updatedRoles.includes("Support_Provider")) {
-    fallbackRole = "Support_Provider";
-  } else if (updatedRoles.includes("Support_Manager")) {
-    fallbackRole = "Support_Manager";
-  }
+      // update local cache so UI updates immediately
+      setRatingsCache(prev => ({ ...prev, [ticketId]: { rating, comment } }));
 
-  console.log("✅ Setting selectedRole to:", fallbackRole);
-  setSelectedRole(fallbackRole);
+      // trigger TicketList reload if it uses reloadKey
+      setReloadKey(k => k + 1);
 
-  setReloadKey(prev => prev + 1);
-  setView("dashboard");
-};
+      // close dialog
+      setIsRateDialogOpen(false);
+      setActiveTicketToRate(null);
+    } catch (err) {
+      console.error('Failed to save rating', err);
+      // you can surface an error UI here if desired
+    }
+  };
+
+  const handleProfileUpdate = async () => {
+    const currentUser = await sp.web.currentUser.get();
+    const userEmail = currentUser.Email;
+
+    const users = await sp.web.lists.getByTitle("All_Users").items
+      .filter(`Email eq '${userEmail}'`)
+      .select("Id", "User_Role/Title")
+      .expand("User_Role")
+      .top(1)
+      .get();
+
+    const updatedRoles: string[] = users[0]?.User_Role?.map((r: any) => r.Title) || [];
+
+    console.log("🔄 Updated roles from SharePoint:", updatedRoles);
+
+    // ✅ Forcefully assign fallback role — skip the includes() check
+    let fallbackRole = '';
+
+    if (updatedRoles.includes("Support_Seeker")) {
+      fallbackRole = "Support_Seeker";
+    } else if (updatedRoles.includes("Support_Provider")) {
+      fallbackRole = "Support_Provider";
+    } else if (updatedRoles.includes("Support_Manager")) {
+      fallbackRole = "Support_Manager";
+    }
+
+    console.log("✅ Setting selectedRole to:", fallbackRole);
+    setSelectedRole(fallbackRole);
+
+    setReloadKey(prev => prev + 1);
+    setView("dashboard");
+  };
 
 
   useEffect(() => {
@@ -139,41 +176,41 @@ const handleProfileUpdate = async () => {
     });
   };
 
-const handleRoleChange = (
-  event: FormEvent<HTMLDivElement>,
-  option: IDropdownOption
-): void => {
-  const roleKey = option.key as number;
+  const handleRoleChange = (
+    event: FormEvent<HTMLDivElement>,
+    option: IDropdownOption
+  ): void => {
+    const roleKey = option.key as number;
 
-  const updatedRoles = option.selected
-    ? [...userRoles, roleKey]
-    : userRoles.filter(id => id !== roleKey);
+    const updatedRoles = option.selected
+      ? [...userRoles, roleKey]
+      : userRoles.filter(id => id !== roleKey);
 
-  setUserRoles(updatedRoles);
+    setUserRoles(updatedRoles);
 
-  // 🔍 Get text of deselected role
-  const deselectedRoleTitle = roleOptions.find(r => r.key === roleKey)?.text;
+    // 🔍 Get text of deselected role
+    const deselectedRoleTitle = roleOptions.find(r => r.key === roleKey)?.text;
 
-  // ✅ If deselected role was currently selected dropdown, pick fallback
-  if (
-    !option.selected && // role was deselected
-    deselectedRoleTitle === selectedRole // the dropdown currently showed this
-  ) {
-    // Find fallback role
-    const fallback = roleOptions.find(
-      r => updatedRoles.includes(r.key as number) &&
-           (r.text === "Support_Seeker" || r.text === "Support_Provider")
-    );
+    // ✅ If deselected role was currently selected dropdown, pick fallback
+    if (
+      !option.selected && // role was deselected
+      deselectedRoleTitle === selectedRole // the dropdown currently showed this
+    ) {
+      // Find fallback role
+      const fallback = roleOptions.find(
+        r => updatedRoles.includes(r.key as number) &&
+          (r.text === "Support_Seeker" || r.text === "Support_Provider")
+      );
 
-    if (fallback) {
-      console.log("🔁 Auto-updating dropdown to fallback:", fallback.text);
-      setSelectedRole(fallback.text);
-    } else {
-      console.log("⚠️ No fallback role available. Clearing dropdown.");
-      setSelectedRole('');
+      if (fallback) {
+        console.log("🔁 Auto-updating dropdown to fallback:", fallback.text);
+        setSelectedRole(fallback.text);
+      } else {
+        console.log("⚠️ No fallback role available. Clearing dropdown.");
+        setSelectedRole('');
+      }
     }
-  }
-};
+  };
 
 
   const handleSave = async (): Promise<void> => {
@@ -234,40 +271,56 @@ const handleRoleChange = (
         />
       )}
 
-{view !== 'login' && view !== 'register' && (
-  <HeaderLayout
-    welcomeName={welcomeName}
-    userRole={selectedRoleTitles}
-    selectedRole={selectedRole}
-    onRoleChange={(role: string) => {
-      console.log("🔁 Role dropdown changed to:", role);
-      setSelectedRole(role);
-    }}
-    onEditClick={() => setView('edit')}
-    onTestClick={() => setView('test')}
-    onTicketsClick={() => setView('dashboard')}
-    onLogout={handleLogout}
-  >
+      {view !== 'login' && view !== 'register' && (
+        <HeaderLayout
+          welcomeName={welcomeName}
+          userRole={selectedRoleTitles}
+          selectedRole={selectedRole}
+          onRoleChange={(role: string) => {
+            console.log("🔁 Role dropdown changed to:", role);
+            setSelectedRole(role);
+          }}
+          onEditClick={() => setView('edit')}
+          onTestClick={() => setView('test')}
+          onTicketsClick={() => setView('dashboard')}
+          onLogout={handleLogout}
+          onRateUsersClick={() => {
+            setRatingTicket(null);           // ensure NOT single-ticket mode
+            setIsRatingDialogOpen(true);     // open the dialog (CompletedTickets)
+          }}
+        >
 
-          {view === 'dashboard' && (
-            <>
-            {console.log("🎯 TicketList is rendering with selectedRole =", selectedRole)}
-<TicketList
-  key={reloadKey} 
-  welcomeName={welcomeName}
-  selectedRole={selectedRole}
-  loginEmail={loginForm.email}
-  context={{
-    spHttpClient: props.context.spHttpClient,
-    msGraphClientFactory: props.context.msGraphClientFactory,
-    absoluteUrl: props.context.pageContext.web.absoluteUrl
-  }}
-  onEditClick={() => setView('edit')}
-  onTestClick={() => setView('test')}
-  onLogout={handleLogout}
-/>
-</>
-          )}
+
+{view === 'dashboard' && (
+  <>
+    {console.log("🎯 TicketList is rendering with selectedRole =", selectedRole)}
+    <TicketList
+      key={reloadKey}
+      welcomeName={welcomeName}
+      selectedRole={selectedRole}
+      loginEmail={loginForm.email}
+      context={{
+        spHttpClient: props.context.spHttpClient,
+        msGraphClientFactory: props.context.msGraphClientFactory,
+        absoluteUrl: props.context.pageContext.web.absoluteUrl
+      }}
+      onEditClick={() => setView('edit')}
+      onTestClick={() => setView('test')}
+      onLogout={handleLogout}
+      // 🔹 REMOVE this old single-ticket handler:
+      // onRateUser={openRatingForSelectedTicket}
+
+      // 🔹 ADD these four props so TicketList can control the dialog:
+      ratingTicket={ratingTicket}
+      setRatingTicket={setRatingTicket}
+      isRatingDialogOpen={isRatingDialogOpen}
+      setIsRatingDialogOpen={setIsRatingDialogOpen}
+
+      ratingsCache={ratingsCache} // keep if you still use ratings cache
+    />
+  </>
+)}
+
 
           {view === 'edit' && (
             <EditProfile
@@ -297,6 +350,70 @@ const handleRoleChange = (
             />
           )}
         </HeaderLayout>
+      )}
+
+      {/* --- Rate User Dialog (parent-managed) --- */}
+      {isRateDialogOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={() => { setIsRateDialogOpen(false); setActiveTicketToRate(null); }} />
+          <div style={{ position: 'relative', width: 'min(720px, 95%)', background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: 0, marginBottom: 10 }}>Rate User</h3>
+            <div style={{ marginBottom: 8, color: '#444' }}>Ticket: {activeTicketToRate?.Title ?? '—'}</div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 6 }}>Rating</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[1, 2, 3, 4, 5].map(n => {
+                  const id = activeTicketToRate?.ID ?? activeTicketToRate?.Id ?? -1;
+                  const current = ratingsCache[id]?.rating ?? 0;
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => setRatingsCache(prev => ({ ...prev, [id]: { ...(prev[id] || {}), rating: n } }))}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: 22,
+                        cursor: 'pointer'
+                      }}
+                      aria-label={`star-${n}`}
+                    >
+                      {current >= n ? '★' : '☆'}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 6 }}>Comment (optional)</label>
+              <textarea
+                rows={4}
+                value={ratingsCache[activeTicketToRate?.ID ?? activeTicketToRate?.Id ?? -1]?.comment || ''}
+                onChange={(e) => {
+                  const id = activeTicketToRate?.ID ?? activeTicketToRate?.Id ?? -1;
+                  setRatingsCache(prev => ({ ...prev, [id]: { ...(prev[id] || {}), comment: e.target.value } }));
+                }}
+                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => { setIsRateDialogOpen(false); setActiveTicketToRate(null); }} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc' }}>Cancel</button>
+              <button onClick={() => {
+                const id = activeTicketToRate?.ID ?? activeTicketToRate?.Id ?? -1;
+                const entry = ratingsCache[id];
+                const rating = entry?.rating ?? 0;
+                const comment = entry?.comment;
+                if (id === -1 || rating === 0) {
+                  alert('Pick a rating before saving.');
+                  return;
+                }
+                saveRating(id, rating, comment);
+              }} style={{ padding: '8px 12px', borderRadius: 6, background: '#0066cc', color: 'white', border: 'none' }}>Save</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

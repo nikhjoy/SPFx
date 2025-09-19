@@ -6,7 +6,7 @@ import {
   Stack, Text, IconButton, PrimaryButton,
   Dialog, DialogType, DialogFooter, TextField,
   Dropdown, Label, DatePicker, DefaultButton,
-  IDropdownOption, Callout, Checkbox, SelectionMode
+  IDropdownOption, Callout, Checkbox, SelectionMode,
 } from '@fluentui/react';
 import { IGroup } from '@fluentui/react';
 import { PeoplePicker, IPeoplePickerUserItem } from '@pnp/spfx-controls-react/lib/PeoplePicker';
@@ -236,7 +236,7 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
           'Requestor/Title', 'Requestor/EMail',
           'AssignedTo/Title', 'AssignedTo/EMail',
           'Manager/Title', 'Manager/EMail',
-          'Provider_Rating', 'Comments'
+          'Provider_Rating', 'Comments', 'Manager_description'
         )
         .expand('Requestor', 'AssignedTo', 'Manager')
         .get();
@@ -273,7 +273,8 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
           Manager: item.Manager?.Title || '',
           ManagerEmail: item.Manager?.EMail || item.Manager?.UserPrincipalName || '',
           Provider_Rating: (item as any).Provider_Rating ?? (item as any).Provider_x005f_Rating ?? 0,
-          Comments: (item as any).Comments ?? (item as any).Comments0 ?? ''
+          Comments: (item as any).Comments ?? (item as any).Comments0 ?? '',
+          Manager_description: (item as any).Manager_description ?? ''
         };
       });
 
@@ -1445,8 +1446,8 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
           isBlocking: false,
           styles: {
             main: {
-              maxWidth: "900px !important",
-              width: "900px !important",
+              maxWidth: "1040px !important",
+              width: "1040px !important",
               overflow: "visible"
             }
           }
@@ -1591,6 +1592,19 @@ const TicketList: React.FC<ITicketListProps> = ({ welcomeName, selectedRole, log
         console.error('Error saving rating in provider dialog:', err);
       }
     }}
+
+      onSaveManagerDescription={async (ticketId: number, text: string) => {
+    try {
+      // update the Manager_description column on Tickets list
+      await sp.web.lists.getByTitle('Tickets').items.getById(ticketId).update({
+        Manager_description: text || ''
+      });
+      // refresh UI
+      await fetchTickets();
+    } catch (err) {
+      console.error('Error saving Manager_description:', err);
+    }
+  }}
     currentUserEmail={loginEmail}
   />
 </div>
